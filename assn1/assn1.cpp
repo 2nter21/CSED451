@@ -69,22 +69,33 @@ void drawText(float x, float y, const std::string& text) {
 void drawPlayer() {
     if (!isPlayerAlive) return;
     glColor3f(0.0f, 1.0f, 0.0f);
-    glBegin(GL_QUADS);
-    glVertex2f(playerX - playerSize, playerY - playerSize);
-    glVertex2f(playerX + playerSize, playerY - playerSize);
-    glVertex2f(playerX + playerSize, playerY + playerSize);
-    glVertex2f(playerX - playerSize, playerY + playerSize);
+
+    glBegin(GL_TRIANGLES);
+    glVertex2f(playerX - 0.5f * playerSize, playerY - std::sqrt(3.0f) / 6.0f * playerSize);
+    glVertex2f(playerX + 0.5f * playerSize, playerY - std::sqrt(3.0f) / 6.0f * playerSize);
+    glVertex2f(playerX, playerY + std::sqrt(3.0f) / 3.0f * playerSize);
     glEnd();
 }
 
 void drawEnemy() {
     if (!enemy.alive) return;
     glColor3f(0.6f, 0.2f, 0.8f);
-    glBegin(GL_QUADS);
-    glVertex2f(enemy.x - enemy.size, enemy.y - enemy.size);
+
+    int segments = 36;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(enemy.x, enemy.y);
+    for (int i = 0; i <= segments; i++)
+    {
+        float angle = 2.0f * 3.14 * i / segments;
+        float x = enemy.x + enemy.size * cos(angle);
+        float y = enemy.y + enemy.size * sin(angle);
+        glVertex2f(x, y);
+    }
+
+    /*glVertex2f(enemy.x - enemy.size, enemy.y - enemy.size);
     glVertex2f(enemy.x + enemy.size, enemy.y - enemy.size);
     glVertex2f(enemy.x + enemy.size, enemy.y + enemy.size);
-    glVertex2f(enemy.x - enemy.size, enemy.y + enemy.size);
+    glVertex2f(enemy.x - enemy.size, enemy.y + enemy.size);*/
     glEnd();
 
     // 체력 바(간단)
@@ -111,14 +122,36 @@ void drawEnemy() {
 
 void drawBullets() {
     for (auto& b : bullets) {
-        if (b.fromPlayer) glColor3f(1.0f, 1.0f, 0.0f);
-        else glColor3f(1.0f, 0.0f, 0.0f);
-        glBegin(GL_QUADS);
-        glVertex2f(b.x - BULLET_SIZE, b.y - BULLET_SIZE);
-        glVertex2f(b.x + BULLET_SIZE, b.y - BULLET_SIZE);
-        glVertex2f(b.x + BULLET_SIZE, b.y + BULLET_SIZE);
-        glVertex2f(b.x - BULLET_SIZE, b.y + BULLET_SIZE);
-        glEnd();
+        if (b.fromPlayer)
+        {
+            glColor3f(1.0f, 1.0f, 0.0f);
+            glBegin(GL_QUADS);
+            glVertex2f(b.x - 1.25f * BULLET_SIZE, b.y - BULLET_SIZE);
+            glVertex2f(b.x - 0.25f * BULLET_SIZE, b.y - BULLET_SIZE);
+            glVertex2f(b.x - 0.25f * BULLET_SIZE, b.y + BULLET_SIZE);
+            glVertex2f(b.x - 1.25f * BULLET_SIZE, b.y + BULLET_SIZE);
+            glEnd();
+            glBegin(GL_QUADS);
+            glVertex2f(b.x + 1.25f * BULLET_SIZE, b.y - BULLET_SIZE);
+            glVertex2f(b.x + 0.25f * BULLET_SIZE, b.y - BULLET_SIZE);
+            glVertex2f(b.x + 0.25f * BULLET_SIZE, b.y + BULLET_SIZE);
+            glVertex2f(b.x + 1.25f * BULLET_SIZE, b.y + BULLET_SIZE);
+            glEnd();
+        }
+        else
+        {
+            glColor3f(1.0f, 0.0f, 0.0f);
+            glBegin(GL_TRIANGLE_FAN);
+            glVertex2f(b.x, b.y);
+            for (int i = 0; i <= 36; i++)
+            {
+                float angle = 2.0f * 3.14 * i / 36;
+                float x = b.x + BULLET_SIZE * 2 * cos(angle);
+                float y = b.y + BULLET_SIZE * 2 * sin(angle);
+                glVertex2f(x, y);
+            }
+            glEnd();
+        }        
     }
 }
 
@@ -298,7 +331,7 @@ void handleKeyDown(unsigned char key, int x, int y) {
     keyState[key] = true;
 
     // 게임 오버 상태에서 R 누르면 재시작 (간단 기능)
-    if (gameOver && (key == 'r' || key == 'R')) {
+    if ((key == 'r' || key == 'R')) {
         // 리셋
         playerLives = 3;
         isPlayerAlive = true;
