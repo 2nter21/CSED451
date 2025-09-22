@@ -7,6 +7,8 @@
 #include <string>
 #include <sstream>
 
+const float PI = 3.14159265358979323846f;
+
 // Player related variables
 float playerX = 0.0f;
 float playerY = 0.0f;
@@ -14,8 +16,7 @@ const float playerSize = 0.05f;
 float moveSpeed = 0.05f;
 int playerLives = 3;
 bool isPlayerAlive = true;
-int respawnTimer = 0; // 프레임 카운트
-bool gameOver = false;
+bool isGameOver = false;
 
 // Bullet structure
 struct Bullet {
@@ -24,7 +25,7 @@ struct Bullet {
     float vx = 0.0f;
     float vy = 0.0f;
     float speed = 0.07f;
-	bool fromPlayer = true; // Distinguish player, enemy bullet
+	bool isFromPlayer = true; // Distinguish player, enemy bullet
 };
 
 // Enemy structure
@@ -33,7 +34,7 @@ struct Enemy {
     float size;
     int health;
     int shootCooldown;
-    bool alive;
+    bool isAlive;
 };
 
 // Store all bullets
@@ -44,60 +45,76 @@ Enemy enemy;
 // Handle key states
 std::map<unsigned char, bool> keyState;
 
-// 플레이어 발사 쿨다운 (프레임)
+// Timer for player actions
 int playerFireCooldownMax = 10;
 int playerFireCooldown = 0;
+int respawnTimer = 0;
 
 // Game constants
 const int RESPAWN_FRAMES = 60; // Respawn after 60 frames
 const int ENEMY_SHOOT_COOLDOWN = 50; // Enemy shoots every 50 frames
 const float BULLET_SIZE = 0.01f;
 
-// Fuction for collision detection
-bool rectCollision(float x1, float y1, float s1, float x2, float y2, float s2) {
-    return std::abs(x1 - x2) < (s1 + s2) && std::abs(y1 - y2) < (s1 + s2);
+// ------------------
+// Basic drawing functions
+// ------------------
+void drawTriangle(float size) {
+    glBegin(GL_TRIANGLES);
+    glVertex2f(-0.5f * size, -std::sqrt(3.0f) / 6.0f * size);
+    glVertex2f(0.5f * size, -std::sqrt(3.0f) / 6.0f * size);
+    glVertex2f(0.0f, std::sqrt(3.0f) / 3.0f * size);
+    glEnd();
 }
 
-void drawText(float x, float y, const std::string& text) {
-    glRasterPos2f(x, y);
-    for (char c : text) {
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
+void drawSquare(float size) {
+    glBegin(GL_QUADS);
+    glVertex2f(-0.5f * size, -0.5f * size);
+    glVertex2f(0.5f * size, -0.5f * size);
+    glVertex2f(0.5f * size, 0.5f * size);
+    glVertex2f(-0.5f * size, 0.5f * size);
+    glEnd();
+}
+
+void drawCircle(float radius) {
+    int segments = 36;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(0.0f, 0.0f);
+    for (int i = 0; i <= segments; i++)
+    {
+        float angle = 2.0f * PI * i / segments;
+        glVertex2f(radius * std::cos(angle), radius * std::sin(angle));
     }
+    glEnd();
 }
 
-// Drawing functions
+// ------------------
+// Objects drawing functions
+
 void drawPlayer() {
     if (!isPlayerAlive) return;
-    glColor3f(0.0f, 1.0f, 0.0f);
 
-    glBegin(GL_TRIANGLES);
-    glVertex2f(playerX - 0.5f * playerSize, playerY - std::sqrt(3.0f) / 6.0f * playerSize);
-    glVertex2f(playerX + 0.5f * playerSize, playerY - std::sqrt(3.0f) / 6.0f * playerSize);
-    glVertex2f(playerX, playerY + std::sqrt(3.0f) / 3.0f * playerSize);
-    glEnd();
+    glPushMatrix();
+    glTranslatef(playerX, playerY, 0.0f);
+    glColor3f(0.0f, 1.0f, 0.0f);
+    drawTriangle(playerSize);
+    glPopMatrix();
 }
 
 void drawEnemy() {
-    if (!enemy.alive) return;
+    if (!enemy.isAlive) return;
+
+    glPushMatrix();
+    glTranslatef(enemy.x, enemy.y, 0.0f);
     glColor3f(0.6f, 0.2f, 0.8f);
-
-    int segments = 36;
-    glBegin(GL_TRIANGLE_FAN);
-    glVertex2f(enemy.x, enemy.y);
-    for (int i = 0; i <= segments; i++)
-    {
-        float angle = 2.0f * 3.14 * i / segments;
-        float x = enemy.x + enemy.size * cos(angle);
-        float y = enemy.y + enemy.size * sin(angle);
-        glVertex2f(x, y);
-    }
-    glEnd();
-
-    // 체력 바(간단)
+    drawCircle(enemy.size);
+    glPopMatrix();    
+    
+    // HP bar
     float barW = 0.2f;
     float barH = 0.02f;
-    float hpRatio = std::max(0.0f, (float)enemy.health / 5.0f); // max hp 가 5라 가정
-    // 백그라운드
+    float hpRatio = std::max(0.0f, (float)enemy.health / 5.0f);
+
+    // Background
     glColor3f(0.3f, 0.3f, 0.3f);
     glBegin(GL_QUADS);
     glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f);
@@ -105,8 +122,9 @@ void drawEnemy() {
     glVertex2f(enemy.x + barW / 2, enemy.y + enemy.size + 0.03f + barH);
     glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f + barH);
     glEnd();
-    // HP
-    glColor3f(1.0f - (1.0f - hpRatio), hpRatio, 0.0f); // 빨강->초록 (단순)
+    
+    // Bar
+    glColor3f(1.0f - (1.0f - hpRatio), hpRatio, 0.0f);
     glBegin(GL_QUADS);
     glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f);
     glVertex2f(enemy.x - barW / 2 + barW * hpRatio, enemy.y + enemy.size + 0.03f);
@@ -117,8 +135,9 @@ void drawEnemy() {
 
 void drawBullets() {
     for (auto& b : bullets) {
+
         // Player bullet : two yello rectangles
-        if (b.fromPlayer)
+        if (b.isFromPlayer)
         {
             glColor3f(1.0f, 1.0f, 0.0f);
             glBegin(GL_QUADS);
@@ -138,20 +157,29 @@ void drawBullets() {
 		// Enemy bullet : red circle
         else
         {
+            glPushMatrix();
+            glTranslatef(b.x, b.y, 0.0f);            
             glColor3f(1.0f, 0.0f, 0.0f);
-            glBegin(GL_TRIANGLE_FAN);
-            glVertex2f(b.x, b.y);
-            for (int i = 0; i <= 36; i++)
-            {
-                float angle = 2.0f * 3.14 * i / 36;
-                float x = b.x + BULLET_SIZE * 2 * cos(angle);
-                float y = b.y + BULLET_SIZE * 2 * sin(angle);
-                glVertex2f(x, y);
-            }
-            glEnd();
+            drawCircle(BULLET_SIZE);
+            glPopMatrix();
         }        
     }
 }
+// ------------------
+
+// Fuction for collision detection
+bool rectCollision(float x1, float y1, float s1, float x2, float y2, float s2) {
+    return std::abs(x1 - x2) < (s1 + s2) && std::abs(y1 - y2) < (s1 + s2);
+}
+
+void drawText(float x, float y, const std::string& text) {
+    glRasterPos2f(x, y);
+    for (char c : text) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
+    }
+}
+
+
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -161,13 +189,13 @@ void display() {
     drawBullets();
 
     std::stringstream ss;
-    ss << "Lives: " << playerLives << "   Enemy HP: " << (enemy.alive ? enemy.health : 0);
+    ss << "Lives: " << playerLives << "   Enemy HP: " << (enemy.isAlive ? enemy.health : 0);
     drawText(-0.98f, 0.95f, ss.str());
 
-    if (gameOver) {
+    if (isGameOver) {
         drawText(-0.1f, 0.0f, "GAME OVER");
     }
-    else if (!enemy.alive) {
+    else if (!enemy.isAlive) {
         drawText(-0.12f, 0.0f, "ENEMY DESTROYED!");
     }
 
@@ -175,7 +203,7 @@ void display() {
 }
 
 void spawnEnemyBullet() {
-    if (!enemy.alive) return;
+    if (!enemy.isAlive) return;
 
     // Calculate direction vector towards player
     float dx = playerX - enemy.x;
@@ -185,7 +213,7 @@ void spawnEnemyBullet() {
     Bullet b;
     b.x = enemy.x;
     b.y = enemy.y - (enemy.size + 0.02f);
-    b.fromPlayer = false;
+    b.isFromPlayer = false;
     b.speed = 0.04f;
     if (len == 0) { b.vx = 0; b.vy = -1; }
     else { b.vx = dx / len; b.vy = dy / len; }
@@ -210,14 +238,14 @@ void updateBullets() {
 
 void handleCollisions() {
     // Player bullet collision with enemy
-    if (enemy.alive) {
+    if (enemy.isAlive) {
         for (auto it = bullets.begin(); it != bullets.end();) {
-            if (it->fromPlayer) {
+            if (it->isFromPlayer) {
                 if (rectCollision(it->x, it->y, BULLET_SIZE, enemy.x, enemy.y, enemy.size)) {
                     enemy.health -= 1;
                     it = bullets.erase(it);
                     if (enemy.health <= 0) {
-                        enemy.alive = false;
+                        enemy.isAlive = false;
                     }
                 }
                 else ++it;
@@ -229,14 +257,14 @@ void handleCollisions() {
     // Enemy bullet collision with player
     if (isPlayerAlive) {
         for (auto it = bullets.begin(); it != bullets.end();) {
-            if (!it->fromPlayer) {
+            if (!it->isFromPlayer) {
                 if (rectCollision(it->x, it->y, BULLET_SIZE, playerX, playerY, playerSize)) {
                     playerLives--;
                     isPlayerAlive = false;
                     respawnTimer = RESPAWN_FRAMES;
                     it = bullets.erase(it);
                     if (playerLives <= 0) {
-                        gameOver = true;
+                        isGameOver = true;
                     }
                     break;
                 }
@@ -248,7 +276,7 @@ void handleCollisions() {
 }
 
 void processInput() {
-    if (gameOver) return;
+    if (isGameOver) return;
     if (!isPlayerAlive) return;
 
     float dx = 0.0f, dy = 0.0f;
@@ -271,7 +299,7 @@ void processInput() {
     if (playerFireCooldown > 0) playerFireCooldown--;
     if (keyState[' '] && playerFireCooldown == 0) {
         Bullet b;
-        b.fromPlayer = true;
+        b.isFromPlayer = true;
         b.x = playerX;
         b.y = playerY + (playerSize + 0.01f);
         b.vx = 0.0f;
@@ -283,11 +311,11 @@ void processInput() {
 }
 
 void timer(int value) {
-    if (!gameOver) {
+    if (!isGameOver) {
         processInput();
 
         // Enemy bullet shooting considering cooldown
-        if (enemy.alive) {
+        if (enemy.isAlive) {
             if (enemy.shootCooldown > 0) enemy.shootCooldown--;
             else {
                 spawnEnemyBullet();
@@ -300,7 +328,7 @@ void timer(int value) {
         handleCollisions();
 
         // Player respawn
-        if (!isPlayerAlive && !gameOver) {
+        if (!isPlayerAlive && !isGameOver) {
             respawnTimer--;
             if (respawnTimer <= 0) {
                 if (playerLives > 0) {
@@ -309,7 +337,7 @@ void timer(int value) {
                     playerY = -0.6f;
                 }
                 else {
-                    gameOver = true;
+                    isGameOver = true;
                 }
             }
         }
@@ -327,9 +355,9 @@ void handleKeyDown(unsigned char key, int x, int y) {
     if ((key == 'r' || key == 'R')) {
         playerLives = 3;
         isPlayerAlive = true;
-        gameOver = false;
+        isGameOver = false;
         playerX = 0.0f; playerY = -0.6f;
-        enemy.alive = true;
+        enemy.isAlive = true;
         enemy.health = 5;
         bullets.clear();
     }
@@ -344,19 +372,19 @@ int main(int argc, char** argv) {
     playerX = 0.0f; playerY = -0.6f;
     playerLives = 3;
     isPlayerAlive = true;
-    gameOver = false;
+    isGameOver = false;
 
     enemy.x = 0.0f;
     enemy.y = 0.6f;
     enemy.size = 0.09f;
     enemy.health = 5;
     enemy.shootCooldown = 30;
-    enemy.alive = true;
+    enemy.isAlive = true;
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(800, 600);
-    glutCreateWindow("Simple Game Assignment");
+    glutCreateWindow("ASSN 1");
 
     glewInit();
 
