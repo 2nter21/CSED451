@@ -60,7 +60,7 @@ const float BULLET_SIZE = 0.01f;
 // ------------------
 GLfloat triangleVertices[6];
 GLfloat squareVertices[8];
-GLfloat circleVertices[2 * (1 + 36) /*center + 36 segments*/];
+GLfloat circleVertices[2 * (1 + 36 + 1) /*center + 36 segments + back to first point*/];
 
 // Initialize each centered at origin
 void initializeVA() {
@@ -83,6 +83,8 @@ void initializeVA() {
         circleVertices[2 * (i + 1)] = cos(angle);
         circleVertices[2 * (i + 1) + 1] = sin(angle);
     }
+    circleVertices[2 * (36 + 1)] = circleVertices[2];
+    circleVertices[2 * (36 + 1) + 1] = circleVertices[3];
 }
 
 // ------------------
@@ -113,7 +115,7 @@ void drawCircle(float radius) {
     glVertexPointer(2, GL_FLOAT, 0, circleVertices);
     glPushMatrix();
     glScalef(radius, radius, 1.0f);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 38);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 36 + 2);
     glPopMatrix();
     glDisableClientState(GL_VERTEX_ARRAY);
 }
