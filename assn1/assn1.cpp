@@ -56,35 +56,66 @@ const int ENEMY_SHOOT_COOLDOWN = 50; // Enemy shoots every 50 frames
 const float BULLET_SIZE = 0.01f;
 
 // ------------------
+// Vertex arrays
+// ------------------
+GLfloat triangleVertices[6];
+GLfloat squareVertices[8];
+GLfloat circleVertices[2 * (1 + 36) /*center + 36 segments*/];
+
+// Initialize each centered at origin
+void initializeVA() {
+
+    // Triangle
+    triangleVertices[0] = -0.5f; triangleVertices[1] = -std::sqrt(3.0f) / 6.0f;
+    triangleVertices[2] = 0.5f;  triangleVertices[3] = -std::sqrt(3.0f) / 6.0f;
+    triangleVertices[4] = 0.0f;  triangleVertices[5] = std::sqrt(3.0f) / 3.0f;
+
+    // Square
+    squareVertices[0] = -0.5f; squareVertices[1] = -0.5f;
+    squareVertices[2] = 0.5f;  squareVertices[3] = -0.5f;
+    squareVertices[4] = 0.5f;  squareVertices[5] = 0.5f;
+    squareVertices[6] = -0.5f; squareVertices[7] = 0.5f;
+
+    // Circle
+    circleVertices[0] = 0.0f; circleVertices[1] = 0.0f;
+    for (int i = 0; i < 36; ++i) {
+        float angle = 2.0f * PI * i / 36;
+        circleVertices[2 * (i + 1)] = cos(angle);
+        circleVertices[2 * (i + 1) + 1] = sin(angle);
+    }
+}
+
+// ------------------
 // Basic drawing functions
 // ------------------
 void drawTriangle(float size) {
-    glBegin(GL_TRIANGLES);
-    glVertex2f(-0.5f * size, -std::sqrt(3.0f) / 6.0f * size);
-    glVertex2f(0.5f * size, -std::sqrt(3.0f) / 6.0f * size);
-    glVertex2f(0.0f, std::sqrt(3.0f) / 3.0f * size);
-    glEnd();
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, triangleVertices);
+    glPushMatrix();
+    glScalef(size, size, 1.0f);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glPopMatrix();
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void drawSquare(float size) {
-    glBegin(GL_QUADS);
-    glVertex2f(-0.5f * size, -0.5f * size);
-    glVertex2f(0.5f * size, -0.5f * size);
-    glVertex2f(0.5f * size, 0.5f * size);
-    glVertex2f(-0.5f * size, 0.5f * size);
-    glEnd();
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, squareVertices);
+    glPushMatrix();
+    glScalef(size, size, 1.0f);
+    glDrawArrays(GL_QUADS, 0, 4);
+    glPopMatrix();
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void drawCircle(float radius) {
-    int segments = 36;
-    glBegin(GL_TRIANGLE_FAN);
-    glVertex2f(0.0f, 0.0f);
-    for (int i = 0; i <= segments; i++)
-    {
-        float angle = 2.0f * PI * i / segments;
-        glVertex2f(radius * std::cos(angle), radius * std::sin(angle));
-    }
-    glEnd();
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, circleVertices);
+    glPushMatrix();
+    glScalef(radius, radius, 1.0f);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 38);
+    glPopMatrix();
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 // ------------------
@@ -136,22 +167,19 @@ void drawEnemy() {
 void drawBullets() {
     for (auto& b : bullets) {
 
-        // Player bullet : two yello rectangles
+        // Player bullet : two yellow rectangles
         if (b.isFromPlayer)
         {
             glColor3f(1.0f, 1.0f, 0.0f);
-            glBegin(GL_QUADS);
-            glVertex2f(b.x - 1.25f * BULLET_SIZE, b.y - BULLET_SIZE);
-            glVertex2f(b.x - 0.25f * BULLET_SIZE, b.y - BULLET_SIZE);
-            glVertex2f(b.x - 0.25f * BULLET_SIZE, b.y + BULLET_SIZE);
-            glVertex2f(b.x - 1.25f * BULLET_SIZE, b.y + BULLET_SIZE);
-            glEnd();
-            glBegin(GL_QUADS);
-            glVertex2f(b.x + 1.25f * BULLET_SIZE, b.y - BULLET_SIZE);
-            glVertex2f(b.x + 0.25f * BULLET_SIZE, b.y - BULLET_SIZE);
-            glVertex2f(b.x + 0.25f * BULLET_SIZE, b.y + BULLET_SIZE);
-            glVertex2f(b.x + 1.25f * BULLET_SIZE, b.y + BULLET_SIZE);
-            glEnd();
+            glPushMatrix();
+            glTranslatef(b.x - 0.75f * BULLET_SIZE, b.y, 0.0f);
+            drawSquare(BULLET_SIZE);
+            glPopMatrix();
+
+            glPushMatrix();
+            glTranslatef(b.x + 0.75f * BULLET_SIZE, b.y, 0.0f);
+            drawSquare(BULLET_SIZE);
+            glPopMatrix();
         }
 
 		// Enemy bullet : red circle
@@ -178,8 +206,6 @@ void drawText(float x, float y, const std::string& text) {
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
     }
 }
-
-
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -387,6 +413,8 @@ int main(int argc, char** argv) {
     glutCreateWindow("ASSN 1");
 
     glewInit();
+
+    initializeVA(); // Initialize vertex arrays
 
     glutDisplayFunc(display);
     glutKeyboardFunc(handleKeyDown);
