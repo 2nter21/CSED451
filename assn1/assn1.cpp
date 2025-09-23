@@ -55,6 +55,10 @@ const int RESPAWN_FRAMES = 60; // Respawn after 60 frames
 const int ENEMY_SHOOT_COOLDOWN = 50; // Enemy shoots every 50 frames
 const float BULLET_SIZE = 0.015f;
 
+// Camera shake
+int shakeTimer = 0;
+float shakeManitude = 0.02f;
+
 // ------------------
 // Vertex arrays
 // ------------------
@@ -200,7 +204,7 @@ void drawEnemy() {
     // HP bar
     float barW = 0.2f;
     float barH = 0.02f;
-    float hpRatio = std::max(0.0f, (float)enemy.health / 5.0f);
+    float hpRatio = std::max(0.0f, (float)enemy.health / 10.0f);
 
     // Background
     glColor3f(0.3f, 0.3f, 0.3f);
@@ -212,7 +216,7 @@ void drawEnemy() {
     glEnd();
     
     // Bar
-    glColor3f(1.0f - (1.0f - hpRatio), hpRatio, 0.0f);
+    glColor3f(1.0f - hpRatio, hpRatio, 0.0f);
     glBegin(GL_QUADS);
     glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f);
     glVertex2f(enemy.x - barW / 2 + barW * hpRatio, enemy.y + enemy.size + 0.03f);
@@ -268,9 +272,19 @@ void drawText(float x, float y, const std::string& text) {
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
 
+    // Camera shake effect
+    glPushMatrix();
+    if (shakeTimer > 0) {
+        float offsetX = ((rand() % 100) / 100.0f - 0.5f) * 2 * shakeManitude;
+        float offsetY = ((rand() % 100) / 100.0f - 0.5f) * 2 * shakeManitude;
+        glTranslatef(offsetX, offsetY, 0.0f);
+        shakeTimer--;
+    }
+
     drawPlayer();
     drawEnemy();
     drawBullets();
+    glPopMatrix();
 
     std::stringstream ss;
     ss << "Lives: " << playerLives << "   Enemy HP: " << (enemy.isAlive ? enemy.health : 0);
@@ -331,6 +345,10 @@ void handleCollisions() {
                     if (enemy.health <= 0) {
                         enemy.isAlive = false;
                     }
+                    else
+                    {
+                        shakeTimer = 15; // Shake for 5 frames
+                    }
                 }
                 else ++it;
             }
@@ -349,6 +367,10 @@ void handleCollisions() {
                     it = bullets.erase(it);
                     if (playerLives <= 0) {
                         isGameOver = true;
+                    }
+                    else
+                    {
+                        shakeTimer = 15; // Shake for 5 frames
                     }
                     break;
                 }
@@ -437,12 +459,12 @@ void handleKeyDown(unsigned char key, int x, int y) {
 
     // Reset condition
     if ((key == 'r' || key == 'R')) {
-        playerLives = 3;
+        playerLives = 5;
         isPlayerAlive = true;
         isGameOver = false;
         playerX = 0.0f; playerY = -0.6f;
         enemy.isAlive = true;
-        enemy.health = 5;
+        enemy.health = 10;
         bullets.clear();
     }
 }
@@ -454,14 +476,14 @@ void handleKeyUp(unsigned char key, int x, int y) {
 int main(int argc, char** argv) {
     // Player start position
     playerX = 0.0f; playerY = -0.6f;
-    playerLives = 3;
+    playerLives = 5;
     isPlayerAlive = true;
     isGameOver = false;
 
     enemy.x = 0.0f;
     enemy.y = 0.6f;
     enemy.size = 0.09f;
-    enemy.health = 5;
+    enemy.health = 10;
     enemy.shootCooldown = 30;
     enemy.isAlive = true;
 
