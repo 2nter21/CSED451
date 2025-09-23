@@ -12,7 +12,7 @@ const float PI = 3.14159265358979323846f;
 // Player related variables
 float playerX = 0.0f;
 float playerY = 0.0f;
-const float playerSize = 0.05f;
+const float playerSize = 0.3f;
 float moveSpeed = 0.05f;
 int playerLives = 3;
 bool isPlayerAlive = true;
@@ -53,22 +53,43 @@ int respawnTimer = 0;
 // Game constants
 const int RESPAWN_FRAMES = 60; // Respawn after 60 frames
 const int ENEMY_SHOOT_COOLDOWN = 50; // Enemy shoots every 50 frames
-const float BULLET_SIZE = 0.01f;
+const float BULLET_SIZE = 0.015f;
 
 // ------------------
 // Vertex arrays
 // ------------------
-GLfloat triangleVertices[6];
+GLfloat playerVertices[30];
 GLfloat squareVertices[8];
 GLfloat circleVertices[2 * (1 + 36 + 1) /*center + 36 segments + back to first point*/];
+GLfloat bossVertices[2*(1+36+10)]; // 원36 + 별10
 
 // Initialize each centered at origin
 void initializeVA() {
 
-    // Triangle
-    triangleVertices[0] = -0.5f; triangleVertices[1] = -std::sqrt(3.0f) / 6.0f;
-    triangleVertices[2] = 0.5f;  triangleVertices[3] = -std::sqrt(3.0f) / 6.0f;
-    triangleVertices[4] = 0.0f;  triangleVertices[5] = std::sqrt(3.0f) / 3.0f;
+    // Main body
+    playerVertices[0] = -0.05f; playerVertices[1] = -0.10f;
+    playerVertices[2] =  0.05f; playerVertices[3] = -0.10f;
+    playerVertices[4] =  0.05f; playerVertices[5] =  0.10f;
+    playerVertices[6] = -0.05f; playerVertices[7] =  0.10f;
+
+    // Top triangle
+    playerVertices[8]  = -0.05f; playerVertices[9]  = 0.10f;
+    playerVertices[10] =  0.05f; playerVertices[11] = 0.10f;
+    playerVertices[12] =  0.0f;  playerVertices[13] = 0.20f;
+
+    // Left engine
+    playerVertices[14] = -0.10f; playerVertices[15] = -0.05f;
+    playerVertices[16] = -0.05f; playerVertices[17] = -0.05f;
+    playerVertices[18] = -0.05f; playerVertices[19] =  0.05f;
+    playerVertices[20] = -0.10f; playerVertices[21] =  0.05f;
+
+    // Right engine
+    playerVertices[22] = 0.05f; playerVertices[23] = -0.05f;
+    playerVertices[24] = 0.10f; playerVertices[25] = -0.05f;
+    playerVertices[26] = 0.10f; playerVertices[27] =  0.05f;
+    playerVertices[28] = 0.05f; playerVertices[29] =  0.05f;
+
+    // ------------------
 
     // Square
     squareVertices[0] = -0.5f; squareVertices[1] = -0.5f;
@@ -85,17 +106,39 @@ void initializeVA() {
     }
     circleVertices[2 * (36 + 1)] = circleVertices[2];
     circleVertices[2 * (36 + 1) + 1] = circleVertices[3];
+
+    // --- Boss: circle + star ---
+    // 원 중심
+    bossVertices[0] = 0.0f; bossVertices[1] = 0.0f;
+    for(int i=0;i<36;i++){
+        float angle = 2*PI*i/36;
+        bossVertices[2*(i+1)] = cos(angle)*0.5f;
+        bossVertices[2*(i+1)+1] = sin(angle)*0.5f;
+    }
+    // 별 (5점)
+    float starOuter=1.0f, starInner=0.35f;
+    for(int i=0;i<5;i++){
+        float angleOuter = 2*PI*i/5 - PI/2;  // 위쪽 꼭짓점이 위를 향하도록
+        float angleInner = angleOuter + PI/5;
+        bossVertices[2*(36+1 + i*2)]   = cos(angleOuter)*starOuter;
+        bossVertices[2*(36+1 + i*2)+1] = sin(angleOuter)*starOuter;
+        bossVertices[2*(36+1 + i*2+1)]   = cos(angleInner)*starInner;
+        bossVertices[2*(36+1 + i*2+1)+1] = sin(angleInner)*starInner;
+    }
 }
 
 // ------------------
 // Basic drawing functions
 // ------------------
-void drawTriangle(float size) {
+void drawPlayer_(float size) {
     glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(2, GL_FLOAT, 0, triangleVertices);
+    glVertexPointer(2,GL_FLOAT,0,playerVertices);
     glPushMatrix();
-    glScalef(size, size, 1.0f);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glScalef(size,size,1.0f);
+    glDrawArrays(GL_QUADS,0,4);       // base
+    glDrawArrays(GL_TRIANGLES,4,3);  // top
+    glDrawArrays(GL_QUADS,7,4);      // left
+    glDrawArrays(GL_QUADS,11,4);     // right
     glPopMatrix();
     glDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -120,6 +163,18 @@ void drawCircle(float radius) {
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
+void drawBoss(float radius){
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2,GL_FLOAT,0,bossVertices);
+    glPushMatrix();
+    glScalef(radius,radius,1.0f);
+    glDrawArrays(GL_TRIANGLE_FAN,0,37);   // circle
+    glDrawArrays(GL_TRIANGLE_FAN,37,10);  // star
+    glPopMatrix();
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+
 // ------------------
 // Objects drawing functions
 
@@ -129,7 +184,7 @@ void drawPlayer() {
     glPushMatrix();
     glTranslatef(playerX, playerY, 0.0f);
     glColor3f(0.0f, 1.0f, 0.0f);
-    drawTriangle(playerSize);
+    drawPlayer_(playerSize);
     glPopMatrix();
 }
 
@@ -139,7 +194,7 @@ void drawEnemy() {
     glPushMatrix();
     glTranslatef(enemy.x, enemy.y, 0.0f);
     glColor3f(0.6f, 0.2f, 0.8f);
-    drawCircle(enemy.size);
+    drawBoss(enemy.size);
     glPopMatrix();    
     
     // HP bar
@@ -199,10 +254,11 @@ void drawBullets() {
 
 // Fuction for collision detection
 bool rectCollision(float x1, float y1, float s1, float x2, float y2, float s2) {
-    return std::abs(x1 - x2) < (s1 + s2) && std::abs(y1 - y2) < (s1 + s2);
+    return std::abs(x1 - x2) < (s1 + s2) / 2 && std::abs(y1 - y2) < (s1 + s2) / 2;
 }
 
 void drawText(float x, float y, const std::string& text) {
+    glColor3f(1.0f, 1.0f, 1.0f);
     glRasterPos2f(x, y);
     for (char c : text) {
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
