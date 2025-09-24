@@ -65,7 +65,7 @@ float shakeManitude = 0.02f;
 GLfloat playerVertices[30];
 GLfloat squareVertices[8];
 GLfloat circleVertices[2 * (1 + 36 + 1) /*center + 36 segments + back to first point*/];
-GLfloat bossVertices[2*(1+36+10)]; // 원36 + 별10
+GLfloat bossVertices[2*(1+36+10)];
 
 // Initialize each centered at origin
 void initializeVA() {
@@ -112,17 +112,15 @@ void initializeVA() {
     circleVertices[2 * (36 + 1) + 1] = circleVertices[3];
 
     // --- Boss: circle + star ---
-    // 원 중심
     bossVertices[0] = 0.0f; bossVertices[1] = 0.0f;
     for(int i=0;i<36;i++){
         float angle = 2*PI*i/36;
         bossVertices[2*(i+1)] = cos(angle)*0.5f;
         bossVertices[2*(i+1)+1] = sin(angle)*0.5f;
     }
-    // 별 (5점)
     float starOuter=1.0f, starInner=0.35f;
     for(int i=0;i<5;i++){
-        float angleOuter = 2*PI*i/5 - PI/2;  // 위쪽 꼭짓점이 위를 향하도록
+        float angleOuter = 2*PI*i/5 - PI/2;
         float angleInner = angleOuter + PI/5;
         bossVertices[2*(36+1 + i*2)]   = cos(angleOuter)*starOuter;
         bossVertices[2*(36+1 + i*2)+1] = sin(angleOuter)*starOuter;
@@ -139,10 +137,10 @@ void drawPlayer_(float size) {
     glVertexPointer(2,GL_FLOAT,0,playerVertices);
     glPushMatrix();
     glScalef(size,size,1.0f);
-    glDrawArrays(GL_QUADS,0,4);       // base
-    glDrawArrays(GL_TRIANGLES,4,3);  // top
-    glDrawArrays(GL_QUADS,7,4);      // left
-    glDrawArrays(GL_QUADS,11,4);     // right
+    glDrawArrays(GL_QUADS,0,4);
+    glDrawArrays(GL_TRIANGLES,4,3);
+    glDrawArrays(GL_QUADS,7,4);
+    glDrawArrays(GL_QUADS,11,4);
     glPopMatrix();
     glDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -172,8 +170,8 @@ void drawBoss(float radius){
     glVertexPointer(2,GL_FLOAT,0,bossVertices);
     glPushMatrix();
     glScalef(radius,radius,1.0f);
-    glDrawArrays(GL_TRIANGLE_FAN,0,37);   // circle
-    glDrawArrays(GL_TRIANGLE_FAN,37,10);  // star
+    glDrawArrays(GL_TRIANGLE_FAN,0,37);
+    glDrawArrays(GL_TRIANGLE_FAN,37,10);
     glPopMatrix();
     glDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -181,7 +179,7 @@ void drawBoss(float radius){
 
 // ------------------
 // Objects drawing functions
-
+// ------------------
 void drawPlayer() {
     if (!isPlayerAlive) return;
 
@@ -397,8 +395,8 @@ void processInput() {
         float newX = playerX + dx * moveSpeed;
         float newY = playerY + dy * moveSpeed;
         // Limit player within widndow boundary
-        if (newX - playerSize > -1.0f && newX + playerSize < 1.0f) playerX = newX;
-        if (newY - playerSize > -1.0f && newY + playerSize < 1.0f) playerY = newY;
+        if (newX - 0.1f * playerSize > -1.0f && newX + 0.1f * playerSize < 1.0f) playerX = newX;
+        if (newY - 0.2f * playerSize > -1.0f && newY + 0.2f * playerSize < 1.0f) playerY = newY;
     }
 
     // Player bullet shooting
