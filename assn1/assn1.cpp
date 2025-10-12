@@ -12,6 +12,7 @@ const float PI = 3.14159265358979323846f;
 // Player related variables
 float playerX = 0.0f;
 float playerY = 0.0f;
+float orbitAngle = 0.0f;
 const float playerSize = 0.3f;
 float moveSpeed = 0.05f;
 int playerLives = 3;
@@ -252,6 +253,26 @@ void drawBullets() {
         }        
     }
 }
+
+void drawPlayerOrbitingEntities() {
+    if (!isPlayerAlive) return;
+
+    const float orbitRadius = 0.1f;
+    const float entityRadius = 0.02f;
+
+    for (int i = 0; i < playerLives; ++i) {
+        float angle = orbitAngle + i * (2.0f * PI / playerLives);
+
+        float ex = playerX + orbitRadius * cos(angle);
+        float ey = playerY + orbitRadius * sin(angle);
+
+        glPushMatrix();
+        glTranslatef(ex, ey, 0.0f);
+        glColor3f(0.0f, 1.0f, 1.0f);
+        drawCircle(entityRadius);
+        glPopMatrix();
+    }
+}
 // ------------------
 
 // Fuction for collision detection
@@ -280,6 +301,7 @@ void display() {
     }
 
     drawPlayer();
+    drawPlayerOrbitingEntities();
     drawEnemy();
     drawBullets();
     glPopMatrix();
@@ -418,6 +440,7 @@ void timer(int value) {
     if (!isGameOver) {
         processInput();
 
+        orbitAngle += 0.05f;
         // Enemy bullet shooting considering cooldown
         if (enemy.isAlive) {
             if (enemy.shootCooldown > 0) enemy.shootCooldown--;
