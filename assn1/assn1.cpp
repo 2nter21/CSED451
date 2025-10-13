@@ -13,10 +13,13 @@ const float PI = 3.14159265358979323846f;
 float playerX = 0.0f;
 float playerY = 0.0f;
 const float playerSize = 0.3f;
+float orbitAngle = 0.0f; // Angle for entities around player
+float orbitSpeed = 0.005f;
 float moveSpeed = 0.05f;
 int playerLives = 3;
 bool isPlayerAlive = true;
 bool isGameOver = false;
+bool isGameClear = false;
 
 // Bullet structure
 struct Bullet {
@@ -28,19 +31,8 @@ struct Bullet {
 	bool isFromPlayer = true; // Distinguish player, enemy bullet
 };
 
-// Enemy structure
-struct Enemy {
-    float x, y;
-    float size;
-    int health;
-    int shootCooldown;
-    bool isAlive;
-};
-
 // Store all bullets
 std::vector<Bullet> bullets;
-
-Enemy enemy;
 
 // Handle key states
 std::map<unsigned char, bool> keyState;
@@ -145,11 +137,12 @@ void drawPlayer_(float size) {
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-void drawSquare(float size) {
+void drawSquare(float width, float height = 0.0f) {
+    if (height == 0.0f) height = width; // If height not specified, make it a square
     glEnableClientState(GL_VERTEX_ARRAY);
     glVertexPointer(2, GL_FLOAT, 0, squareVertices);
     glPushMatrix();
-    glScalef(size, size, 1.0f);
+    glScalef(width, height, 1.0f);
     glDrawArrays(GL_QUADS, 0, 4);
     glPopMatrix();
     glDisableClientState(GL_VERTEX_ARRAY);
@@ -176,6 +169,187 @@ void drawBoss(float radius){
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
+static inline float lerp(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+static inline void lerpColor(float aR, float aG, float aB,
+                             float bR, float bG, float bB,
+                             float t, float &oR, float &oG, float &oB) {
+    oR = lerp(aR, bR, t);
+    oG = lerp(aG, bG, t);
+    oB = lerp(aB, bB, t);
+}
+
+void drawEnemyBodyParametric(float baseSize, int health, int maxHealth, float legPhase) {
+    float hpRatio = std::max(0.0f, std::min(1.0f, (float)health / (float)maxHealth));
+    float inv = 1.0f - hpRatio;
+
+    float bodyScale = baseSize * lerp(0.85f, 1.05f, hpRatio);
+
+    // body color changing by health decreasing
+    float healthyR = 0.6f, healthyG = 0.2f, healthyB = 0.8f;
+    float damagedR = 1.0f, damagedG = 0.15f, damagedB = 0.15f;
+    float r,g,b;
+    lerpColor(damagedR, damagedG, damagedB, healthyR, healthyG, healthyB, hpRatio, r, g, b);
+
+    // body pulsing effect
+    float pulse = 0.9f + 0.03f * sinf(legPhase * 3.0f + inv * 6.0f);
+
+    glColor3f(r, g, b);
+    glPushMatrix();
+        glScalef(bodyScale * pulse, bodyScale * pulse, 1.0f);
+        drawCircle(1.0f);
+    glPopMatrix();
+    
+
+    // inner spike parameters
+    int spikeCount = 5;
+    float outerBase = 1.0f + 0.20f * inv;
+    float innerBase = 0.45f - 0.05f * inv;
+    float spikeJitter = 0.08f * inv;
+    float outerR = outerBase * bodyScale;
+    float innerR = innerBase * bodyScale;
+
+    // draw spikes
+    for (int i = 0; i < spikeCount; ++i) {
+        float a0 = (2.0f * PI * i) / spikeCount;
+        float aMid = a0 + (PI / spikeCount);
+        float a1 = a0 + (2.0f * PI / spikeCount);
+        float jitter = spikeJitter * (sinf(legPhase * 5.0f + i) * 0.5f + 0.5f);
+
+        float oR = outerR * (1.0f + jitter);
+        float iR = innerR * (1.0f - jitter * 0.5f);
+
+        // outer vertex
+        float tx = oR * cosf(aMid);
+        float ty = oR * sinf(aMid);
+        // two inner vertices
+        float bx1 = iR * cosf(a0);
+        float by1 = iR * sinf(a0);
+        float bx2 = iR * cosf(a1);
+        float by2 = iR * sinf(a1);
+        
+        glBegin(GL_TRIANGLES);
+            glVertex2f(tx, ty);
+            glVertex2f(bx1, by1);
+            glVertex2f(bx2, by2);
+        glEnd();
+    }
+}
+
+// Enemy structure
+struct Enemy {
+    // variables
+    float x = 0, y = 0;
+    float size = 0.2f;
+    int health = 5;
+    int maxHealth = 5;
+    int shootCooldown = 30;
+    bool isAlive = true;
+
+    // animation
+    float targetAngle = 0.0f;
+    float legPhase = 0.0f;
+    float legAmplitude = 0.4f; // in radians
+    float legSpeed = 2.0f;
+
+    Enemy() {}
+    Enemy(float x, float y, float size, int health)
+        : x(x), y(y), size(size), health(health), maxHealth(health), shootCooldown(30), isAlive(true) {}
+
+    void update(float dt, float playerX, float playerY, std::vector<Bullet>& bullets) {
+        if(!isAlive) return;
+        legPhase += legSpeed * dt;
+        y -= 0.02f * dt; // Move down slowly
+
+        float dx = playerX - x;
+        float dy = playerY - y;
+        targetAngle = atan2(dy, dx) - PI / 2; // Face towards player
+
+        if (shootCooldown > 0) shootCooldown--;
+        else {
+            // Shoot a bullet towards player
+            Bullet b;
+            b.x = x;
+            b.y = y - (size * 0.6f);
+            b.isFromPlayer = false;
+            float len = std::sqrt(dx * dx + dy * dy);
+            b.vx = (dx / len);
+            b.vy = (dy / len);
+            b.speed = 0.03f;
+            bullets.push_back(b);
+
+            shootCooldown = ENEMY_SHOOT_COOLDOWN;
+        }
+    }
+
+    bool hitTest(float bulletx, float bullety, float bulletSize) {
+        float dx = bulletx - x;
+        float dy = bullety - y;
+        float distSq = dx * dx + dy * dy;
+        float r = (size + bulletSize);
+        return distSq < r * r;
+    }
+
+    void onHit(int damage) {
+        health -= damage;
+        if(health <= 0) {
+            isAlive = false;
+        } else {
+            shakeTimer += 12;
+        }
+    }
+
+    void draw() {
+        if(!isAlive) return;
+
+        glPopMatrix();
+        glPushMatrix();
+        glTranslatef(x, y, 0.0f);
+        glRotatef(targetAngle * 180.0f / PI, 0, 0, 1);
+
+        // Body
+        glColor3f(0.6f, 0.2f, 0.8f);
+        drawEnemyBodyParametric(size, health, maxHealth, legPhase);
+
+        // Cannon
+        glPushMatrix();
+            glTranslatef(0.0f, size * 1.3, 0.0f);
+            float cannonW = size * 0.3f;
+            float cannonH = size * 0.6f;
+            glColor3f(1.0f, 0.05f, 0.05f);
+            drawSquare(cannonW, cannonH);
+        glPopMatrix();
+
+        // Tail
+        float legBaseAngle = -0.5f  * PI;
+        float baseRadius = size * 1.5f;
+        float legAngleOffset = legAmplitude * sin(legPhase);
+        float legAngle = legBaseAngle + legAngleOffset;
+
+        glPushMatrix();
+            glTranslatef(cosf(legAngle) * baseRadius, sinf(legAngle) * baseRadius, 0.0f);
+            glRotatef((legAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
+            glColor3f(0.8f, 0.5f, 0.2f);
+            drawSquare(size * 0.3f, size);
+            glPushMatrix();
+                legAngle = legAngle * 3.0f;
+                glTranslatef(0.0f, -0.5f * size, 0.0f);
+                glRotatef((legAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
+                glColor3f(0.8f, 0.5f, 0.2f);
+                drawSquare(size * 0.3f, size);
+            glPopMatrix();
+        glPopMatrix();
+
+        glPopMatrix();
+    }
+};
+
+std::vector<Enemy> enemies;
+
+void spawnEnemy(float x, float y, float size = 0.2f, int health = 5) {
+    enemies.emplace_back(x, y, size, health);
+}
 
 // ------------------
 // Objects drawing functions
@@ -190,38 +364,7 @@ void drawPlayer() {
     glPopMatrix();
 }
 
-void drawEnemy() {
-    if (!enemy.isAlive) return;
 
-    glPushMatrix();
-    glTranslatef(enemy.x, enemy.y, 0.0f);
-    glColor3f(0.6f, 0.2f, 0.8f);
-    drawBoss(enemy.size);
-    glPopMatrix();    
-    
-    // HP bar
-    float barW = 0.2f;
-    float barH = 0.02f;
-    float hpRatio = std::max(0.0f, (float)enemy.health / 10.0f);
-
-    // Background
-    glColor3f(0.3f, 0.3f, 0.3f);
-    glBegin(GL_QUADS);
-    glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f);
-    glVertex2f(enemy.x + barW / 2, enemy.y + enemy.size + 0.03f);
-    glVertex2f(enemy.x + barW / 2, enemy.y + enemy.size + 0.03f + barH);
-    glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f + barH);
-    glEnd();
-    
-    // Bar
-    glColor3f(1.0f - hpRatio, hpRatio, 0.0f);
-    glBegin(GL_QUADS);
-    glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f);
-    glVertex2f(enemy.x - barW / 2 + barW * hpRatio, enemy.y + enemy.size + 0.03f);
-    glVertex2f(enemy.x - barW / 2 + barW * hpRatio, enemy.y + enemy.size + 0.03f + barH);
-    glVertex2f(enemy.x - barW / 2, enemy.y + enemy.size + 0.03f + barH);
-    glEnd();
-}
 
 void drawBullets() {
     for (auto& b : bullets) {
@@ -232,12 +375,12 @@ void drawBullets() {
             glColor3f(1.0f, 1.0f, 0.0f);
             glPushMatrix();
             glTranslatef(b.x - 0.75f * BULLET_SIZE, b.y, 0.0f);
-            drawSquare(BULLET_SIZE);
+            drawSquare(BULLET_SIZE, 2 * BULLET_SIZE);
             glPopMatrix();
 
             glPushMatrix();
             glTranslatef(b.x + 0.75f * BULLET_SIZE, b.y, 0.0f);
-            drawSquare(BULLET_SIZE);
+            drawSquare(BULLET_SIZE, 2 * BULLET_SIZE);
             glPopMatrix();
         }
 
@@ -250,6 +393,26 @@ void drawBullets() {
             drawCircle(BULLET_SIZE);
             glPopMatrix();
         }        
+    }
+}
+
+void drawPlayerOrbitingEntities() {
+    if (!isPlayerAlive) return;
+
+    const float orbitRadius = 0.1f;
+    const float entityRadius = 0.02f;
+
+    for (int i = 0; i < playerLives; ++i) {
+        float angle = orbitAngle + i * (2.0f * PI / playerLives) + glutGet(GLUT_ELAPSED_TIME) * orbitSpeed;
+
+        float ex = playerX + orbitRadius * cos(angle);
+        float ey = playerY + orbitRadius * sin(angle);
+
+        glPushMatrix();
+        glTranslatef(ex, ey, 0.0f);
+        glColor3f(0.0f, 1.0f, 1.0f);
+        drawCircle(entityRadius);
+        glPopMatrix();
     }
 }
 // ------------------
@@ -280,41 +443,27 @@ void display() {
     }
 
     drawPlayer();
-    drawEnemy();
+    drawPlayerOrbitingEntities();
+
+    for(auto& e : enemies) e.draw();
     drawBullets();
     glPopMatrix();
 
     std::stringstream ss;
-    ss << "Lives: " << playerLives << "   Enemy HP: " << (enemy.isAlive ? enemy.health : 0);
+    ss << "Lives: " << playerLives;
     drawText(-0.98f, 0.95f, ss.str());
 
     if (isGameOver) {
         drawText(-0.1f, 0.0f, "GAME OVER");
     }
-    else if (!enemy.isAlive) {
-        drawText(-0.12f, 0.0f, "ENEMY DESTROYED!");
+    else if (isGameClear) {
+        drawText(-0.1f, 0.0f, "GAME CLEAR!");
     }
+
 
     glutSwapBuffers();
 }
 
-void spawnEnemyBullet() {
-    if (!enemy.isAlive) return;
-
-    // Calculate direction vector towards player
-    float dx = playerX - enemy.x;
-    float dy = playerY - enemy.y;
-    float len = std::sqrt(dx * dx + dy * dy);
-
-    Bullet b;
-    b.x = enemy.x;
-    b.y = enemy.y - (enemy.size + 0.02f);
-    b.isFromPlayer = false;
-    b.speed = 0.04f;
-    if (len == 0) { b.vx = 0; b.vy = -1; }
-    else { b.vx = dx / len; b.vy = dy / len; }
-    bullets.push_back(b);
-}
 
 void updateBullets() {
     // Update bullet positions
@@ -334,24 +483,19 @@ void updateBullets() {
 
 void handleCollisions() {
     // Player bullet collision with enemy
-    if (enemy.isAlive) {
-        for (auto it = bullets.begin(); it != bullets.end();) {
-            if (it->isFromPlayer) {
-                if (rectCollision(it->x, it->y, BULLET_SIZE, enemy.x, enemy.y, enemy.size)) {
-                    enemy.health -= 1;
-                    it = bullets.erase(it);
-                    if (enemy.health <= 0) {
-                        enemy.isAlive = false;
-                    }
-                    else
-                    {
-                        shakeTimer = 15; // Shake for 5 frames
-                    }
-                }
-                else ++it;
+    for (auto it = bullets.begin(); it != bullets.end();) {
+        if (!it->isFromPlayer) { ++it; continue; }
+        bool erased = false;
+        for (auto &e : enemies) {
+            if (!e.isAlive) continue;
+            if (e.hitTest(it->x, it->y, 0.01f)) {
+                e.onHit(1);
+                it = bullets.erase(it);
+                erased = true;
+                break;
             }
-            else ++it;
         }
+        if (!erased) ++it;
     }
 
     // Enemy bullet collision with player
@@ -377,6 +521,11 @@ void handleCollisions() {
             else ++it;
         }
     }
+
+    // remove dead enemies
+    enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const Enemy &e) {
+        return !e.isAlive;
+    }), enemies.end());
 }
 
 void processInput() {
@@ -415,16 +564,14 @@ void processInput() {
 }
 
 void timer(int value) {
+    const float dt = 1.0f / 60.0f; // 60 FPS
+
     if (!isGameOver) {
         processInput();
 
-        // Enemy bullet shooting considering cooldown
-        if (enemy.isAlive) {
-            if (enemy.shootCooldown > 0) enemy.shootCooldown--;
-            else {
-                spawnEnemyBullet();
-                enemy.shootCooldown = ENEMY_SHOOT_COOLDOWN;
-            }
+        // update enemies
+        for (auto &e : enemies) {
+            e.update(dt, playerX, playerY, bullets);
         }
 
         // Bullet handling
@@ -460,11 +607,15 @@ void handleKeyDown(unsigned char key, int x, int y) {
         playerLives = 5;
         isPlayerAlive = true;
         isGameOver = false;
+        isGameClear = false;
         playerX = 0.0f; playerY = -0.6f;
-        enemy.isAlive = true;
-        enemy.health = 10;
+        enemies.clear();
         bullets.clear();
+        spawnEnemy( 0.0f,  0.6f, 0.12f, 10);
+        spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
+        spawnEnemy( 0.6f,  0.45f,0.07f, 3);
     }
+    else if (enemies.size() == 0 && !isGameOver) { isGameClear = true; }
 }
 
 void handleKeyUp(unsigned char key, int x, int y) {
@@ -477,13 +628,7 @@ int main(int argc, char** argv) {
     playerLives = 5;
     isPlayerAlive = true;
     isGameOver = false;
-
-    enemy.x = 0.0f;
-    enemy.y = 0.6f;
-    enemy.size = 0.09f;
-    enemy.health = 10;
-    enemy.shootCooldown = 30;
-    enemy.isAlive = true;
+    isGameClear = false;
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
@@ -493,6 +638,11 @@ int main(int argc, char** argv) {
     glewInit();
 
     initializeVA(); // Initialize vertex arrays
+
+    // initial enemies
+    spawnEnemy( 0.0f,  0.6f, 0.12f, 10);
+    spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
+    spawnEnemy( 0.6f,  0.45f,0.07f, 3);
 
     glutDisplayFunc(display);
     glutKeyboardFunc(handleKeyDown);
