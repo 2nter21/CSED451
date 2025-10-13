@@ -36,7 +36,7 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 /lib
     freeglut.lib
     glew32.lib
-assn1.cpp
+code.cpp
 build.ps1
 README.md
 ```

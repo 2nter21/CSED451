@@ -9,9 +9,9 @@ Enter-VsDevShell -VsInstallPath "C:\Program Files\Microsoft Visual Studio\2022\C
 
 Set-Location $currentDir
 
-cl "$currentDir\assn1.cpp" /EHsc /std:c++17 /D "NDEBUG" `
+cl "$currentDir\code.cpp" /EHsc /std:c++17 /D "NDEBUG" `
 	/I "$currentDir\include" `
-	/Fo"$currentDir\build\assn1.obj" `
+	/Fo"$currentDir\build\code.obj" `
 	/Fe"$currentDir\build\build.exe" `
 	/Fd"$currentDir\build\vc.pdb" `
 	/link /LIBPATH:"$currentDir\lib" freeglut.lib glew32.lib opengl32.lib
