@@ -158,17 +158,6 @@ void drawCircle(float radius) {
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-void drawBoss(float radius){
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(2,GL_FLOAT,0,bossVertices);
-    glPushMatrix();
-    glScalef(radius,radius,1.0f);
-    glDrawArrays(GL_TRIANGLE_FAN,0,37);
-    glDrawArrays(GL_TRIANGLE_FAN,37,10);
-    glPopMatrix();
-    glDisableClientState(GL_VERTEX_ARRAY);
-}
-
 static inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
 }
@@ -180,7 +169,7 @@ static inline void lerpColor(float aR, float aG, float aB,
     oB = lerp(aB, bB, t);
 }
 
-void drawEnemyBodyParametric(float baseSize, int health, int maxHealth, float legPhase) {
+void drawBoss(float baseSize, int health, int maxHealth, float tailPhase) {
     float hpRatio = std::max(0.0f, std::min(1.0f, (float)health / (float)maxHealth));
     float inv = 1.0f - hpRatio;
 
@@ -193,13 +182,10 @@ void drawEnemyBodyParametric(float baseSize, int health, int maxHealth, float le
     lerpColor(damagedR, damagedG, damagedB, healthyR, healthyG, healthyB, hpRatio, r, g, b);
 
     // body pulsing effect
-    float pulse = 0.9f + 0.03f * sinf(legPhase * 3.0f + inv * 6.0f);
+    float pulse = 0.9f + 0.03f * sinf(tailPhase * 3.0f + inv * 6.0f);
 
     glColor3f(r, g, b);
-    glPushMatrix();
-        glScalef(bodyScale * pulse, bodyScale * pulse, 1.0f);
-        drawCircle(1.0f);
-    glPopMatrix();
+    drawCircle(bodyScale * pulse);
     
 
     // inner spike parameters
@@ -215,7 +201,7 @@ void drawEnemyBodyParametric(float baseSize, int health, int maxHealth, float le
         float a0 = (2.0f * PI * i) / spikeCount;
         float aMid = a0 + (PI / spikeCount);
         float a1 = a0 + (2.0f * PI / spikeCount);
-        float jitter = spikeJitter * (sinf(legPhase * 5.0f + i) * 0.5f + 0.5f);
+        float jitter = spikeJitter * (sinf(tailPhase * 5.0f + i) * 0.5f + 0.5f);
 
         float oR = outerR * (1.0f + jitter);
         float iR = innerR * (1.0f - jitter * 0.5f);
@@ -249,9 +235,9 @@ struct Enemy {
 
     // animation
     float targetAngle = 0.0f;
-    float legPhase = 0.0f;
-    float legAmplitude = 0.4f; // in radians
-    float legSpeed = 2.0f;
+    float tailPhase = 0.0f;
+    float tailAmplitude = 0.4f; // in radians
+    float tailSpeed = 2.0f;
 
     Enemy() {}
     Enemy(float x, float y, float size, int health)
@@ -259,7 +245,7 @@ struct Enemy {
 
     void update(float dt, float playerX, float playerY, std::vector<Bullet>& bullets) {
         if(!isAlive) return;
-        legPhase += legSpeed * dt;
+        tailPhase += tailSpeed * dt;
         y -= 0.02f * dt; // Move down slowly
 
         float dx = playerX - x;
@@ -310,7 +296,7 @@ struct Enemy {
 
         // Body
         glColor3f(0.6f, 0.2f, 0.8f);
-        drawEnemyBodyParametric(size, health, maxHealth, legPhase);
+        drawBoss(size, health, maxHealth, tailPhase);
 
         // Cannon
         glPushMatrix();
@@ -322,20 +308,20 @@ struct Enemy {
         glPopMatrix();
 
         // Tail
-        float legBaseAngle = -0.5f  * PI;
+        float tailBaseAngle = -0.5f  * PI;
         float baseRadius = size * 1.5f;
-        float legAngleOffset = legAmplitude * sin(legPhase);
-        float legAngle = legBaseAngle + legAngleOffset;
+        float tailAngleOffset = tailAmplitude * sin(tailPhase);
+        float tailAngle = tailBaseAngle + tailAngleOffset;
 
         glPushMatrix();
-            glTranslatef(cosf(legAngle) * baseRadius, sinf(legAngle) * baseRadius, 0.0f);
-            glRotatef((legAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
+            glTranslatef(cosf(tailAngle) * baseRadius, sinf(tailAngle) * baseRadius, 0.0f);
+            glRotatef((tailAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
             glColor3f(0.8f, 0.5f, 0.2f);
             drawSquare(size * 0.3f, size);
             glPushMatrix();
-                legAngle = legAngle * 3.0f;
+                tailAngle = tailAngle * 3.0f;
                 glTranslatef(0.0f, -0.5f * size, 0.0f);
-                glRotatef((legAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
+                glRotatef((tailAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
                 glColor3f(0.8f, 0.5f, 0.2f);
                 drawSquare(size * 0.3f, size);
             glPopMatrix();
@@ -633,7 +619,7 @@ int main(int argc, char** argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(800, 600);
-    glutCreateWindow("ASSN 1");
+    glutCreateWindow("Bullet Hell Shooter");
 
     glewInit();
 
