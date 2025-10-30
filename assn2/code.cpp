@@ -12,6 +12,8 @@ const float PI = 3.14159265358979323846f;
 // Player related variables
 float playerX = 0.0f;
 float playerY = 0.0f;
+int currentCameraView = 0; // 0: top view(perspective), 1: top view(orthographic), 2: third-person view
+int currentGraphicStyle = 0;// 0: 
 const float playerSize = 0.3f;
 float orbitAngle = 0.0f; // Angle for entities around player
 float orbitSpeed = 0.005f;
@@ -416,8 +418,52 @@ void drawText(float x, float y, const std::string& text) {
     }
 }
 
+void setCameraViews(int viewType, float pX, float pY) {
+
+    // --- 1. 렌즈 설정 (Projection) ---
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
+    float aspectRatio = 800.0f / 600.0f;
+
+    switch (viewType) {
+    case 0: // 1. 탑뷰 + 원근 투영
+        gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
+        break;
+    case 1: // 2. 탑뷰 + 직교 투영
+        glOrtho(-3.0f * aspectRatio, 3.0f * aspectRatio, -3.0f, 3.0f, -10.0f, 10.0f);
+        break;
+    case 2: // 3. 3인칭 + 원근 투영
+        gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
+        break;
+    }
+
+    // --- 2. 카메라 위치 설정 (ModelView) ---
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    switch (viewType) {
+    case 0: // 1. 탑뷰 (원근)
+        gluLookAt(0.0f, 0.0f, 5.0f,
+            0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f);
+        break;
+    case 1: // 2. 탑뷰 (직교)
+        gluLookAt(0.0f, 0.0f, 5.0f,
+            0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f);
+        break;
+    case 2: // 3. 3인칭 뷰 (플레이어... 근처!)
+        gluLookAt(pX, pY - 2.5f, 2.0f,
+            pX, pY, 0.0f,
+            0.0f, 1.0f, 0.0f);
+        break;
+    }
+}
+
 void display() {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    setCameraViews(currentCameraView, playerX, playerY);
 
     // Camera shake effect
     glPushMatrix();
@@ -445,7 +491,9 @@ void display() {
     else if (isGameClear) {
         drawText(-0.1f, 0.0f, "GAME CLEAR!");
     }
-
+    if (currentCameraView == 0) drawText(-0.98f, 0.85f, "Top View(Perspective)");
+    if (currentCameraView == 1) drawText(-0.98f, 0.85f, "Top View(Orthographic)");
+    if (currentCameraView == 2) drawText(-0.98f, 0.85f, "Third-person View");
 
     glutSwapBuffers();
 }
@@ -588,6 +636,10 @@ void timer(int value) {
 void handleKeyDown(unsigned char key, int x, int y) {
     keyState[key] = true;
 
+    if (key == 'c' || key == 'C') {
+        currentCameraView = (currentCameraView + 1) % 3; 
+    }
+
     // Reset condition
     if ((key == 'r' || key == 'R')) {
         playerLives = 5;
@@ -636,9 +688,12 @@ int main(int argc, char** argv) {
     glutTimerFunc(0, timer, 0);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    /*
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(-1, 1, -1, 1);
+    */
+    glEnable(GL_DEPTH_TEST);
 
     glutMainLoop();
     return 0;
