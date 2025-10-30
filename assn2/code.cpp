@@ -12,6 +12,8 @@ const float PI = 3.14159265358979323846f;
 // Player related variables
 float playerX = 0.0f;
 float playerY = 0.0f;
+// 0: top view(perspective projection), 1: top view(orthographic projection), 2: third-person view with perspective projection
+int currentCameraView = 0;
 const float playerSize = 0.3f;
 float orbitAngle = 0.0f; // Angle for entities around player
 float orbitSpeed = 0.005f;
@@ -289,7 +291,7 @@ struct Enemy {
     void draw() {
         if(!isAlive) return;
 
-        glPopMatrix();
+        /*glPopMatrix();*/
         glPushMatrix();
         glTranslatef(x, y, 0.0f);
         glRotatef(targetAngle * 180.0f / PI, 0, 0, 1);
@@ -416,8 +418,54 @@ void drawText(float x, float y, const std::string& text) {
     }
 }
 
+// needs proper value setting
+void setCameraViews(int viewType, float pX, float pY) {
+    // 3D lens setting
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
+    // window size ratio
+    float aspectRatio = 800.0f / 600.0f;
+
+    switch (viewType) {
+    case 0: // 1. top view(perspective projection)
+        gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
+        break;
+    case 1: // 2. top view(orthographic projection)
+        glOrtho(-3.0f * aspectRatio, 3.0f * aspectRatio, -3.0f, 3.0f, -10.0f, 10.0f);
+        break;
+    case 2: // 3. third-person view with perspective projection
+        gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
+        break;
+    }
+
+    // set camera location (ModelView)
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    switch (viewType) {
+    case 0: // 1. top view(perspective projection)
+        gluLookAt(0.0f, 0.0f, 5.0f,
+            0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f);
+        break;
+    case 1: // 2. top view(orthographic projection)
+        gluLookAt(0.0f, 0.0f, 5.0f,
+            0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f);
+        break;
+    case 2: // 3. third-person view with perspective projection
+        gluLookAt(pX, pY - 2.5f, 2.0f,
+            pX, pY, 0.0f,
+            0.0f, 1.0f, 0.0f);
+        break;
+    }
+}
+
 void display() {
-    glClear(GL_COLOR_BUFFER_BIT);
+    /* glClear(GL_COLOR_BUFFER_BIT); */
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    setCameraViews(currentCameraView, playerX, playerY);
 
     // Camera shake effect
     glPushMatrix();
@@ -435,6 +483,18 @@ void display() {
     drawBullets();
     glPopMatrix();
 
+    // for text drawing, convert to 2D lens
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(-1, 1, -1, 1);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glDisable(GL_DEPTH_TEST);
+
     std::stringstream ss;
     ss << "Lives: " << playerLives;
     drawText(-0.98f, 0.95f, ss.str());
@@ -446,6 +506,13 @@ void display() {
         drawText(-0.1f, 0.0f, "GAME CLEAR!");
     }
 
+    glEnable(GL_DEPTH_TEST);
+
+    // convert to 3D lens
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
 
     glutSwapBuffers();
 }
@@ -588,6 +655,9 @@ void timer(int value) {
 void handleKeyDown(unsigned char key, int x, int y) {
     keyState[key] = true;
 
+    // camera view change condition
+    if (key == 'c' || key == 'C') currentCameraView = (currentCameraView + 1) % 3;
+
     // Reset condition
     if ((key == 'r' || key == 'R')) {
         playerLives = 5;
@@ -617,11 +687,21 @@ int main(int argc, char** argv) {
     isGameClear = false;
 
     glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    /*glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);*/
+    glutInitDisplayMode(GLUT_DOUBLE | GL_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
     glutCreateWindow("Bullet Hell Shooter");
 
     glewInit();
+
+    GLenum err = glewInit();
+    if (GLEW_OK != err)
+    {
+        /* GLEW 초기화 실패! */
+        fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
+        // 이 경우 프로그램이 더 이상 진행되면 안 됩니다.
+        // return 1; // 또는 적절한 오류 처리
+    }
 
     initializeVA(); // Initialize vertex arrays
 
@@ -636,9 +716,12 @@ int main(int argc, char** argv) {
     glutTimerFunc(0, timer, 0);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    /*
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(-1, 1, -1, 1);
+    */
+    glEnable(GL_DEPTH_TEST);
 
     glutMainLoop();
     return 0;
