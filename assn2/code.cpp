@@ -25,7 +25,7 @@ public:
         std::string err;
 
         if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename)) {
-            std::cerr << "TINYOBJ... 폭탄... 터졌어!!: " << warn << err << std::endl;
+            std::cerr << "Error: " << warn << err << std::endl;
             return;
         }
 
@@ -56,6 +56,69 @@ public:
         glVertexPointer(3, GL_FLOAT, 0, vertices.data());
         glDrawArrays(GL_TRIANGLES, 0, vertexCount);
         glDisableClientState(GL_VERTEX_ARRAY);
+    }
+};
+
+struct Vec3 {
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+    Vec3() {}
+    Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+};
+
+struct Node {
+    // vectors
+    Vec3 pos;    // glTranslatef
+    Vec3 rot;    // glRotatef
+    Vec3 scale;  // glScalef
+    Vec3 color;  // glColor3f
+
+    // model to draw
+    Model* model = nullptr;
+
+    // child node
+    std::vector<Node*> children;
+
+    // another way to draw
+    void (*customDrawFunc)() = nullptr;
+
+    bool isVisible = true;
+
+    // constructor
+    Node() {
+        pos = Vec3(0, 0, 0);
+        rot = Vec3(0, 0, 0);
+        scale = Vec3(1, 1, 1); // default scale
+        color = Vec3(1, 1, 1); // default color: white
+        model = nullptr;
+        customDrawFunc = nullptr;
+        isVisible = true;
+    }
+
+    // recursively draw
+    void drawRecursive() {
+        if (!isVisible) {
+            return;
+        }
+        glPushMatrix();
+        glTranslatef(pos.x, pos.y, pos.z);
+        glRotatef(rot.x, 1.0f, 0.0f, 0.0f);
+        glRotatef(rot.y, 0.0f, 1.0f, 0.0f);
+        glRotatef(rot.z, 0.0f, 0.0f, 1.0f);
+        glScalef(scale.x, scale.y, scale.z);
+
+        if (model != nullptr) {
+            glColor3f(color.x, color.y, color.z);
+            model->draw();
+        }
+
+        if (customDrawFunc != nullptr) {
+            customDrawFunc();
+        }
+
+        for (Node* child : children) {
+            child->drawRecursive();
+        }
+        glPopMatrix();
     }
 };
 
@@ -105,13 +168,15 @@ const float BULLET_SIZE = 0.015f;
 int shakeTimer = 0;
 float shakeManitude = 0.02f;
 
+
 // ------------------
 // Vertex arrays
 // ------------------
-GLfloat playerVertices[30];
-GLfloat squareVertices[8];
-GLfloat circleVertices[2 * (1 + 36 + 1) /*center + 36 segments + back to first point*/];
-GLfloat bossVertices[2*(1+36+10)];
+//GLfloat playerVertices[30];
+//GLfloat squareVertices[8];
+//GLfloat circleVertices[2 * (1 + 36 + 1) /*center + 36 segments + back to first point*/];
+//GLfloat bossVertices[2*(1+36+10)];
+
 
 // 3D models
 Model donutModel;
@@ -125,6 +190,21 @@ Model squareModel;
 Model starModel;
 Model triangleModel;
 
+Node rootNode;
+Node bboxNode;
+Node playerNode;
+Node playerModelNode;
+Node orbitGroupNode;
+Node enemiesGroupNode;
+Node bulletsGroupNode;
+
+const int MAX_ORBIENTITIES = 5;
+const int MAX_ENEMIES = 3;
+const int MAX_BULLETS = 500;
+std::vector<Node> orbitEntityNodePool;
+std::vector<Node> enemyNodePool;
+std::vector<Node> bulletNodePool;
+/*
 // Initialize each centered at origin
 void initializeVA() {
 
@@ -223,6 +303,7 @@ void drawCircle(float radius) {
     glPopMatrix();
     glDisableClientState(GL_VERTEX_ARRAY);
 }
+*/
 
 static inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
@@ -235,6 +316,7 @@ static inline void lerpColor(float aR, float aG, float aB,
     oB = lerp(aB, bB, t);
 }
 
+/*
 void drawBoss(float baseSize, int health, int maxHealth, float tailPhase) {
     float hpRatio = std::max(0.0f, std::min(1.0f, (float)health / (float)maxHealth));
     float inv = 1.0f - hpRatio;
@@ -288,6 +370,7 @@ void drawBoss(float baseSize, int health, int maxHealth, float tailPhase) {
         glEnd();
     }
 }
+*/
 
 // Enemy structure
 struct Enemy {
@@ -434,7 +517,7 @@ void drawBullets() {
         // Player bullet : two yellow rectangles
         if (b.isFromPlayer)
         {
-            glColor3f(1.0f, 1.0f, 0.0f);
+            /*glColor3f(1.0f, 1.0f, 0.0f);*/
             glPushMatrix();
             glTranslatef(b.x - 0.75f * BULLET_SIZE, b.y, 0.0f);
             glColor3f(0.5f, 0.8f, 1.0f);
@@ -445,7 +528,10 @@ void drawBullets() {
 
             glPushMatrix();
             glTranslatef(b.x + 0.75f * BULLET_SIZE, b.y, 0.0f);
-            drawSquare(BULLET_SIZE, 2 * BULLET_SIZE);
+            glColor3f(0.5f, 0.8f, 1.0f);
+            glScalef(0.02f, 0.02f, 0.02f);
+            sphereModel.draw();
+            /*drawSquare(BULLET_SIZE, 2 * BULLET_SIZE);*/
             glPopMatrix();
         }
 
@@ -467,7 +553,7 @@ void drawPlayerOrbitingEntities() {
     if (!isPlayerAlive) return;
 
     const float orbitRadius = 0.4f;
-    const float entityRadius = 0.02f;
+    const float entityRadius = 0.04f;
 
     for (int i = 0; i < playerLives; ++i) {
         float angle = orbitAngle + i * (2.0f * PI / playerLives) + glutGet(GLUT_ELAPSED_TIME) * orbitSpeed;
@@ -478,24 +564,11 @@ void drawPlayerOrbitingEntities() {
         glPushMatrix();
         glTranslatef(ex, ey, 0.0f);
         glScalef(0.02f, 0.02f, 0.02f);
+        glRotatef(glutGet(GLUT_ELAPSED_TIME) * 0.1f, 0.5f, 1.0f, 0.0f);
         glColor3f(0.0f, 1.0f, 1.0f);
-        sphereModel.draw();
+        starModel.draw();
         /*drawCircle(entityRadius);*/
         glPopMatrix();
-    }
-}
-// ------------------
-
-// Fuction for collision detection
-bool rectCollision(float x1, float y1, float s1, float x2, float y2, float s2) {
-    return std::abs(x1 - x2) < (s1 + s2) / 2 && std::abs(y1 - y2) < (s1 + s2) / 2;
-}
-
-void drawText(float x, float y, const std::string& text) {
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glRasterPos2f(x, y);
-    for (char c : text) {
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
     }
 }
 
@@ -505,7 +578,7 @@ void drawBoundingBox() {
     float minY = -1.0f, maxY = 1.0f;
     float minZ = -1.0f, maxZ = 1.0f;
 
-    glColor3f(1.0f, 1.0f, 0.0f); // (노란색... 깡통...!)
+    glColor3f(1.0f, 1.0f, 0.0f); // color: yellow
 
     // line drawing
     glBegin(GL_LINES);
@@ -530,6 +603,20 @@ void drawBoundingBox() {
 
     glEnd();
 }
+// ------------------
+
+// Fuction for collision detection
+bool rectCollision(float x1, float y1, float s1, float x2, float y2, float s2) {
+    return std::abs(x1 - x2) < (s1 + s2) / 2 && std::abs(y1 - y2) < (s1 + s2) / 2;
+}
+
+void drawText(float x, float y, const std::string& text) {
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glRasterPos2f(x, y);
+    for (char c : text) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
+    }
+}
 
 void setGraphicStyle(int style) {
     if (style == 0) {
@@ -543,7 +630,6 @@ void setGraphicStyle(int style) {
 }
 
 void setCameraViews(int viewType, float pX, float pY) {
-
     // lens setting
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -555,7 +641,7 @@ void setCameraViews(int viewType, float pX, float pY) {
         gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
         break;
     case 1: // 1. top view(orthographic)
-        glOrtho(-3.0f * aspectRatio, 3.0f * aspectRatio, -3.0f, 3.0f, -10.0f, 10.0f);
+        glOrtho(-1.2f * aspectRatio, 1.2f * aspectRatio, -1.2f, 1.2f, -10.0f, 10.0f);
         break;
     case 2: // 2. third-person view
         gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
@@ -568,12 +654,12 @@ void setCameraViews(int viewType, float pX, float pY) {
 
     switch (viewType) {
     case 0: // 0. top view(perspective)
-        gluLookAt(0.0f, 0.0f, 5.0f,
+        gluLookAt(0.0f, 0.0f, 2.5f,
             0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f);
         break;
     case 1: // 1. top view(orthographic)
-        gluLookAt(0.0f, 0.0f, 5.0f,
+        gluLookAt(0.0f, 0.0f, 2.5f,
             0.0f, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f);
         break;
@@ -585,6 +671,93 @@ void setCameraViews(int viewType, float pX, float pY) {
     }
 }
 
+void updateSceneGraph() {
+
+    // 1. player node update
+    playerNode.pos.x = playerX;
+    playerNode.pos.y = playerY;
+    playerNode.isVisible = isPlayerAlive;
+
+    // 2. plyer orbiting node pool update
+    orbitGroupNode.children.clear(); // ('자식'... ...'싹'... ...'비우기'!)
+    if (isPlayerAlive) {
+        const float orbitRadius = 0.4f;
+        float timeAngle = glutGet(GLUT_ELAPSED_TIME) * orbitSpeed;
+
+        for (int i = 0; i < playerLives; ++i) {
+            Node* orbitEntityNode = &orbitEntityNodePool[i];
+
+            float angle = orbitAngle + i * (2.0f * PI / playerLives) + timeAngle;
+            orbitEntityNode->pos.x = orbitRadius * cos(angle);
+            orbitEntityNode->pos.y = orbitRadius * sin(angle);
+            orbitEntityNode->pos.z = 0.0f;
+            orbitEntityNode->rot.z = glutGet(GLUT_ELAPSED_TIME) * 0.1f;
+
+            orbitGroupNode.children.push_back(orbitEntityNode); // set child node
+        }
+    }
+
+    // 3. enemies node pool update
+    enemiesGroupNode.children.clear();
+    int enemyNodeIndex = 0;
+
+    for (const auto& enemy : enemies) {
+        if (enemyNodeIndex >= MAX_ENEMIES) break;
+
+        Node* enemyNode = &enemyNodePool[enemyNodeIndex++];
+
+        enemyNode->isVisible = enemy.isAlive;
+        enemyNode->pos.x = enemy.x;
+        enemyNode->pos.y = enemy.y;
+        enemyNode->rot.z = enemy.targetAngle * 180.0f / PI;
+
+        enemiesGroupNode.children.push_back(enemyNode); // set child node
+    }
+
+    // 4. bullets node pool update
+    bulletsGroupNode.children.clear();
+    int bulletNodeIndex = 0;
+
+    for (const auto& bullet : bullets) {
+        if (bullet.isFromPlayer) {
+            if (bulletNodeIndex + 1 >= MAX_BULLETS) break;
+
+            // left bullet
+            Node* bulletNodeL = &bulletNodePool[bulletNodeIndex++];
+            bulletNodeL->isVisible = true;
+            bulletNodeL->model = &riceModel;
+            bulletNodeL->color = Vec3(1.0f, 1.0f, 0.8f);
+            bulletNodeL->pos.x = bullet.x - 0.02f;
+            bulletNodeL->pos.y = bullet.y;
+            bulletNodeL->rot = Vec3(90.0f, 0.0f, -15.0f);
+            bulletsGroupNode.children.push_back(bulletNodeL);
+
+            // right bullet
+            Node* bulletNodeR = &bulletNodePool[bulletNodeIndex++];
+            bulletNodeR->isVisible = true;
+            bulletNodeR->model = &riceModel;
+            bulletNodeR->color = Vec3(1.0f, 1.0f, 0.8f);
+            bulletNodeR->pos.x = bullet.x + 0.02f;
+            bulletNodeR->pos.y = bullet.y;
+            bulletNodeR->rot = Vec3(90.0f, 0.0f, 15.0f);
+            bulletsGroupNode.children.push_back(bulletNodeR);
+
+        }
+        else {
+            // enemy bullet: red sphere
+            if (bulletNodeIndex >= MAX_BULLETS) break;
+
+            Node* bulletNode = &bulletNodePool[bulletNodeIndex++];
+            bulletNode->isVisible = true;
+            bulletNode->model = &sphereModel;
+            bulletNode->color = Vec3(1.0f, 0.3f, 0.3f);
+            bulletNode->pos.x = bullet.x;
+            bulletNode->pos.y = bullet.y;
+            bulletNode->rot = Vec3(0, 0, 0);
+            bulletsGroupNode.children.push_back(bulletNode);
+        }
+    }
+}
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     setCameraViews(currentCameraView, playerX, playerY);
@@ -599,6 +772,10 @@ void display() {
         shakeTimer--;
     }
 
+    updateSceneGraph();
+    rootNode.drawRecursive();
+    glPopMatrix();
+    /*
     drawBoundingBox();
     drawPlayer();
     drawPlayerOrbitingEntities();
@@ -606,6 +783,7 @@ void display() {
     for (auto& e : enemies) e.draw();
     drawBullets();
     glPopMatrix();
+    */
 
     // drawing 2D UI
     glMatrixMode(GL_PROJECTION);
@@ -820,7 +998,7 @@ int main(int argc, char** argv) {
     isGameClear = false;
 
     glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(800, 600);
     glutCreateWindow("Bullet Hell Shooter");
 
@@ -839,10 +1017,42 @@ int main(int argc, char** argv) {
 
     /*initializeVA();*/ // Initialize vertex arrays 
 
+    // intialize node pool
+    orbitEntityNodePool.resize(MAX_ORBIENTITIES);
+    for(int i = 0; i < MAX_ORBIENTITIES; i++) {
+        orbitEntityNodePool[i].model = &starModel;
+        orbitEntityNodePool[i].scale = Vec3(0.04f, 0.04f, 0.04f);
+        orbitEntityNodePool[i].color = Vec3(1.0f, 0.0f, 1.0f);
+    }
+    
+    enemyNodePool.resize(MAX_ENEMIES);
+    for(int i = 0; i < MAX_ENEMIES; i++) {
+        enemyNodePool[i].model = &droneModel; 
+        enemyNodePool[i].scale = Vec3(0.3f, 0.3f, 0.3f); 
+        enemyNodePool[i].color = Vec3(0.8f, 0.5f, 1.0f); 
+        enemyNodePool[i].rot.x = 90.0f; 
+    }
+
+    bulletNodePool.resize(MAX_BULLETS);
+    for(int i = 0; i < MAX_BULLETS; i++) {
+        bulletNodePool[i].scale = Vec3(0.02f, 0.02f, 0.02f); 
+    }
     // initial enemies
     spawnEnemy( 0.0f,  0.6f, 0.12f, 10);
     spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
     spawnEnemy( 0.6f,  0.45f,0.07f, 3);
+
+    rootNode.children.push_back(&bboxNode);
+    bboxNode.customDrawFunc = &drawBoundingBox;
+    rootNode.children.push_back(&playerNode);
+    playerNode.children.push_back(&playerModelNode);
+    playerModelNode.model = &jetModel;
+    playerModelNode.color = Vec3(0, 1, 0);
+    playerModelNode.scale = Vec3(0.02f, 0.02f, 0.02f);
+    playerModelNode.rot = Vec3(-90.0f, 0.0f, 0.0f);
+    playerNode.children.push_back(&orbitGroupNode);
+    rootNode.children.push_back(&enemiesGroupNode);
+    rootNode.children.push_back(&bulletsGroupNode);
 
     glutDisplayFunc(display);
     glutKeyboardFunc(handleKeyDown);
