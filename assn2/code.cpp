@@ -204,106 +204,7 @@ const int MAX_BULLETS = 500;
 std::vector<Node> orbitEntityNodePool;
 std::vector<Node> enemyNodePool;
 std::vector<Node> bulletNodePool;
-/*
-// Initialize each centered at origin
-void initializeVA() {
 
-    // Main body
-    playerVertices[0] = -0.05f; playerVertices[1] = -0.10f;
-    playerVertices[2] =  0.05f; playerVertices[3] = -0.10f;
-    playerVertices[4] =  0.05f; playerVertices[5] =  0.10f;
-    playerVertices[6] = -0.05f; playerVertices[7] =  0.10f;
-
-    // Top triangle
-    playerVertices[8]  = -0.05f; playerVertices[9]  = 0.10f;
-    playerVertices[10] =  0.05f; playerVertices[11] = 0.10f;
-    playerVertices[12] =  0.0f;  playerVertices[13] = 0.20f;
-
-    // Left engine
-    playerVertices[14] = -0.10f; playerVertices[15] = -0.05f;
-    playerVertices[16] = -0.05f; playerVertices[17] = -0.05f;
-    playerVertices[18] = -0.05f; playerVertices[19] =  0.05f;
-    playerVertices[20] = -0.10f; playerVertices[21] =  0.05f;
-
-    // Right engine
-    playerVertices[22] = 0.05f; playerVertices[23] = -0.05f;
-    playerVertices[24] = 0.10f; playerVertices[25] = -0.05f;
-    playerVertices[26] = 0.10f; playerVertices[27] =  0.05f;
-    playerVertices[28] = 0.05f; playerVertices[29] =  0.05f;
-
-    // ------------------
-
-    // Square
-    squareVertices[0] = -0.5f; squareVertices[1] = -0.5f;
-    squareVertices[2] = 0.5f;  squareVertices[3] = -0.5f;
-    squareVertices[4] = 0.5f;  squareVertices[5] = 0.5f;
-    squareVertices[6] = -0.5f; squareVertices[7] = 0.5f;
-
-    // Circle
-    circleVertices[0] = 0.0f; circleVertices[1] = 0.0f;
-    for (int i = 0; i < 36; ++i) {
-        float angle = 2.0f * PI * i / 36;
-        circleVertices[2 * (i + 1)] = cos(angle);
-        circleVertices[2 * (i + 1) + 1] = sin(angle);
-    }
-    circleVertices[2 * (36 + 1)] = circleVertices[2];
-    circleVertices[2 * (36 + 1) + 1] = circleVertices[3];
-
-    // --- Boss: circle + star ---
-    bossVertices[0] = 0.0f; bossVertices[1] = 0.0f;
-    for(int i=0;i<36;i++){
-        float angle = 2*PI*i/36;
-        bossVertices[2*(i+1)] = cos(angle)*0.5f;
-        bossVertices[2*(i+1)+1] = sin(angle)*0.5f;
-    }
-    float starOuter=1.0f, starInner=0.35f;
-    for(int i=0;i<5;i++){
-        float angleOuter = 2*PI*i/5 - PI/2;
-        float angleInner = angleOuter + PI/5;
-        bossVertices[2*(36+1 + i*2)]   = cos(angleOuter)*starOuter;
-        bossVertices[2*(36+1 + i*2)+1] = sin(angleOuter)*starOuter;
-        bossVertices[2*(36+1 + i*2+1)]   = cos(angleInner)*starInner;
-        bossVertices[2*(36+1 + i*2+1)+1] = sin(angleInner)*starInner;
-    }
-}
-
-// ------------------
-// Basic drawing functions
-// ------------------
-void drawPlayer_(float size) {
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(2,GL_FLOAT,0,playerVertices);
-    glPushMatrix();
-    glScalef(size,size,1.0f);
-    glDrawArrays(GL_QUADS,0,4);
-    glDrawArrays(GL_TRIANGLES,4,3);
-    glDrawArrays(GL_QUADS,7,4);
-    glDrawArrays(GL_QUADS,11,4);
-    glPopMatrix();
-    glDisableClientState(GL_VERTEX_ARRAY);
-}
-
-void drawSquare(float width, float height = 0.0f) {
-    if (height == 0.0f) height = width; // If height not specified, make it a square
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(2, GL_FLOAT, 0, squareVertices);
-    glPushMatrix();
-    glScalef(width, height, 1.0f);
-    glDrawArrays(GL_QUADS, 0, 4);
-    glPopMatrix();
-    glDisableClientState(GL_VERTEX_ARRAY);
-}
-
-void drawCircle(float radius) {
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(2, GL_FLOAT, 0, circleVertices);
-    glPushMatrix();
-    glScalef(radius, radius, 1.0f);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 36 + 2);
-    glPopMatrix();
-    glDisableClientState(GL_VERTEX_ARRAY);
-}
-*/
 
 static inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
@@ -315,62 +216,6 @@ static inline void lerpColor(float aR, float aG, float aB,
     oG = lerp(aG, bG, t);
     oB = lerp(aB, bB, t);
 }
-
-/*
-void drawBoss(float baseSize, int health, int maxHealth, float tailPhase) {
-    float hpRatio = std::max(0.0f, std::min(1.0f, (float)health / (float)maxHealth));
-    float inv = 1.0f - hpRatio;
-
-    float bodyScale = baseSize * lerp(0.85f, 1.05f, hpRatio);
-
-    // body color changing by health decreasing
-    float healthyR = 0.6f, healthyG = 0.2f, healthyB = 0.8f;
-    float damagedR = 1.0f, damagedG = 0.15f, damagedB = 0.15f;
-    float r,g,b;
-    lerpColor(damagedR, damagedG, damagedB, healthyR, healthyG, healthyB, hpRatio, r, g, b);
-
-    // body pulsing effect
-    float pulse = 0.9f + 0.03f * sinf(tailPhase * 3.0f + inv * 6.0f);
-
-    glColor3f(r, g, b);
-    drawCircle(bodyScale * pulse);
-    
-
-    // inner spike parameters
-    int spikeCount = 5;
-    float outerBase = 1.0f + 0.20f * inv;
-    float innerBase = 0.45f - 0.05f * inv;
-    float spikeJitter = 0.08f * inv;
-    float outerR = outerBase * bodyScale;
-    float innerR = innerBase * bodyScale;
-
-    // draw spikes
-    for (int i = 0; i < spikeCount; ++i) {
-        float a0 = (2.0f * PI * i) / spikeCount;
-        float aMid = a0 + (PI / spikeCount);
-        float a1 = a0 + (2.0f * PI / spikeCount);
-        float jitter = spikeJitter * (sinf(tailPhase * 5.0f + i) * 0.5f + 0.5f);
-
-        float oR = outerR * (1.0f + jitter);
-        float iR = innerR * (1.0f - jitter * 0.5f);
-
-        // outer vertex
-        float tx = oR * cosf(aMid);
-        float ty = oR * sinf(aMid);
-        // two inner vertices
-        float bx1 = iR * cosf(a0);
-        float by1 = iR * sinf(a0);
-        float bx2 = iR * cosf(a1);
-        float by2 = iR * sinf(a1);
-        
-        glBegin(GL_TRIANGLES);
-            glVertex2f(tx, ty);
-            glVertex2f(bx1, by1);
-            glVertex2f(bx2, by2);
-        glEnd();
-    }
-}
-*/
 
 // Enemy structure
 struct Enemy {
@@ -444,47 +289,6 @@ struct Enemy {
         glColor3f(0.8f, 0.5f, 1.0f);
         droneModel.draw();
         glPopMatrix();
-        /*
-        glPopMatrix();
-        glPushMatrix();
-        glTranslatef(x, y, 0.0f);
-        glRotatef(targetAngle * 180.0f / PI, 0, 0, 1);
-
-        // Body
-        glColor3f(0.6f, 0.2f, 0.8f);
-        drawBoss(size, health, maxHealth, tailPhase);
-
-        // Cannon
-        glPushMatrix();
-            glTranslatef(0.0f, size * 1.3, 0.0f);
-            float cannonW = size * 0.3f;
-            float cannonH = size * 0.6f;
-            glColor3f(1.0f, 0.05f, 0.05f);
-            drawSquare(cannonW, cannonH);
-        glPopMatrix();
-
-        // Tail
-        float tailBaseAngle = -0.5f  * PI;
-        float baseRadius = size * 1.5f;
-        float tailAngleOffset = tailAmplitude * sin(tailPhase);
-        float tailAngle = tailBaseAngle + tailAngleOffset;
-
-        glPushMatrix();
-            glTranslatef(cosf(tailAngle) * baseRadius, sinf(tailAngle) * baseRadius, 0.0f);
-            glRotatef((tailAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
-            glColor3f(0.8f, 0.5f, 0.2f);
-            drawSquare(size * 0.3f, size);
-            glPushMatrix();
-                tailAngle = tailAngle * 3.0f;
-                glTranslatef(0.0f, -0.5f * size, 0.0f);
-                glRotatef((tailAngle + PI / 2) * 180.0f / PI, 0, 0, 1);
-                glColor3f(0.8f, 0.5f, 0.2f);
-                drawSquare(size * 0.3f, size);
-            glPopMatrix();
-        glPopMatrix();
-
-        glPopMatrix();
-        */
     }
 };
 
@@ -517,13 +321,13 @@ void drawBullets() {
         // Player bullet : two yellow rectangles
         if (b.isFromPlayer)
         {
-            /*glColor3f(1.0f, 1.0f, 0.0f);*/
+
             glPushMatrix();
             glTranslatef(b.x - 0.75f * BULLET_SIZE, b.y, 0.0f);
             glColor3f(0.5f, 0.8f, 1.0f);
             glScalef(0.02f, 0.02f, 0.02f);
             sphereModel.draw();
-            /*drawSquare(BULLET_SIZE, 2 * BULLET_SIZE); */
+
             glPopMatrix();
 
             glPushMatrix();
@@ -531,7 +335,7 @@ void drawBullets() {
             glColor3f(0.5f, 0.8f, 1.0f);
             glScalef(0.02f, 0.02f, 0.02f);
             sphereModel.draw();
-            /*drawSquare(BULLET_SIZE, 2 * BULLET_SIZE);*/
+
             glPopMatrix();
         }
 
@@ -543,7 +347,6 @@ void drawBullets() {
             glColor3f(1.0f, 0.0f, 0.0f);
             glScalef(0.02f, 0.02f, 0.02f);
             sphereModel.draw();
-            /*drawCircle(BULLET_SIZE);*/
             glPopMatrix();
         }        
     }
@@ -567,7 +370,6 @@ void drawPlayerOrbitingEntities() {
         glRotatef(glutGet(GLUT_ELAPSED_TIME) * 0.1f, 0.5f, 1.0f, 0.0f);
         glColor3f(0.0f, 1.0f, 1.0f);
         starModel.draw();
-        /*drawCircle(entityRadius);*/
         glPopMatrix();
     }
 }
@@ -709,7 +511,7 @@ void updateSceneGraph() {
         enemyNode->isVisible = enemy.isAlive;
         enemyNode->pos.x = enemy.x;
         enemyNode->pos.y = enemy.y;
-        enemyNode->rot.z = enemy.targetAngle * 180.0f / PI;
+        enemyNode->rot.y = enemy.targetAngle * 180.0f / PI;
 
         enemiesGroupNode.children.push_back(enemyNode); // set child node
     }
@@ -775,15 +577,7 @@ void display() {
     updateSceneGraph();
     rootNode.drawRecursive();
     glPopMatrix();
-    /*
-    drawBoundingBox();
-    drawPlayer();
-    drawPlayerOrbitingEntities();
 
-    for (auto& e : enemies) e.draw();
-    drawBullets();
-    glPopMatrix();
-    */
 
     // drawing 2D UI
     glMatrixMode(GL_PROJECTION);
