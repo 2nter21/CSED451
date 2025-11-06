@@ -424,8 +424,32 @@ void bulletParticleEffect(float x, float y) {
         p.velocity.y = sin(angle) * SPREAD_SPEED;
         p.velocity.z = 0.0f;
 
-        p.lifetime = PARTICLE_LIFETIME;
+        p.lifetime = PARTICLE_LIFETIME + ((rand() % 10) / 100.0f);
         p.color = Vec3(1.0f, 1.0f, 0.0f);
+
+        particles.push_back(p);
+    }
+}
+
+void boostParticleEffect(float playerX, float playerY) {
+    int particlesNum = 1 + (rand() % 2);
+
+    for(int i=0 ; i<particlesNum ; i++) {
+        Particle p;
+
+        p.pos.x = playerX + ((rand() % 100 / 50.0f) - 1.0f) * 0.03f;
+        p.pos.y = playerY - 0.05f;
+        p.pos.z = ((rand() % 100 / 50.0f) - 1.0f) * 0.01f;
+
+        p.velocity.x = ((rand() % 100 / 50.0f) - 1.0f) * 0.1f;
+        p.velocity.y = -0.5f - (rand() % 100 / 100.0f) * 0.3f;
+        p.velocity.z = ((rand() % 100 / 50.0f) - 1.0f) * 0.1f;
+
+        p.lifetime = 0.2f + (rand() % 100 / 100.0f) * 0.2f;
+
+        p.color.x = 1.0f;
+        p.color.y = 0.5f + (rand() % 100 / 100.0f) * 0.5f;
+        p.color.z = 0.0f;
 
         particles.push_back(p);
     }
@@ -745,7 +769,10 @@ void processInput() {
     if (!isPlayerAlive) return;
 
     float dx = 0.0f, dy = 0.0f;
-    if (keyState['w']) dy += 1.0f;
+    if (keyState['w']) {
+        dy += 1.0f;
+        boostParticleEffect(playerX, playerY);
+    }
     if (keyState['s']) dy -= 1.0f;
     if (keyState['a']) dx -= 1.0f;
     if (keyState['d']) dx += 1.0f;
