@@ -571,6 +571,9 @@ void updateSceneGraph() {
     enemiesGroupNode.children.clear();
     int enemyNodeIndex = 0;
 
+    const Vec3 healthyColor(0.8f, 0.5f, 1.0f);
+    const Vec3 damagedColor(1.0f, 0.2f, 0.2f);
+
     for (const auto& enemy : enemies) {
         if (enemyNodeIndex >= MAX_ENEMIES) break;
 
@@ -580,6 +583,11 @@ void updateSceneGraph() {
         enemyNode->pos.x = enemy.x;
         enemyNode->pos.y = enemy.y;
         enemyNode->rot.y = enemy.targetAngle * 180.0f / PI;
+
+        float hpRatio = std::max(0.0f, (float)enemy.health / (float)enemy.maxHealth);
+        enemyNode->color.x = lerp(damagedColor.x, healthyColor.x, hpRatio);
+        enemyNode->color.y = lerp(damagedColor.y, healthyColor.y, hpRatio);
+        enemyNode->color.z = lerp(damagedColor.z, healthyColor.z, hpRatio);
 
         enemiesGroupNode.children.push_back(enemyNode); // set child node
     }
