@@ -203,9 +203,11 @@ Node bulletsGroupNode;
 const int MAX_ORBIENTITIES = 5;
 const int MAX_ENEMIES = 3;
 const int MAX_BULLETS = 500;
+const int MAX_ENEMY_ORBITS = 4;
 std::vector<Node> orbitEntityNodePool;
 std::vector<Node> enemyNodePool;
 std::vector<Node> bulletNodePool;
+std::vector<Node> enemyOrbitEntityNodePool;
 
 
 
@@ -574,10 +576,16 @@ void updateSceneGraph() {
     const Vec3 healthyColor(0.8f, 0.5f, 1.0f);
     const Vec3 damagedColor(1.0f, 0.2f, 0.2f);
 
+    float time = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    const float ENEMY_ORBIT_RADIUS = 0.5f;
+    const float ENEMY_ORBIT_SPEED = 3.0f;
+
     for (const auto& enemy : enemies) {
         if (enemyNodeIndex >= MAX_ENEMIES) break;
 
-        Node* enemyNode = &enemyNodePool[enemyNodeIndex++];
+        Node* enemyNode = &enemyNodePool[enemyNodeIndex];
+
+        enemyNode->children.clear();
 
         enemyNode->isVisible = enemy.isAlive;
         enemyNode->pos.x = enemy.x;
@@ -589,8 +597,23 @@ void updateSceneGraph() {
         enemyNode->color.y = lerp(damagedColor.y, healthyColor.y, hpRatio);
         enemyNode->color.z = lerp(damagedColor.z, healthyColor.z, hpRatio);
 
+        for(int i=0 ; i<MAX_ENEMY_ORBITS ; i++) {
+            int sphereNodeIndex = enemyNodeIndex * MAX_ENEMY_ORBITS + i;
+            Node* sphereNode = &enemyOrbitEntityNodePool[sphereNodeIndex];
+
+            float angle = time * ENEMY_ORBIT_SPEED + (i * (2.0f * PI / MAX_ENEMY_ORBITS));
+
+            sphereNode->pos.x = cos(angle) * ENEMY_ORBIT_RADIUS;
+            sphereNode->pos.y = sin(angle) * ENEMY_ORBIT_RADIUS;
+            sphereNode->pos.z = 0.0f;
+
+            enemyNode->children.push_back(sphereNode);
+        }
+
         enemiesGroupNode.children.push_back(enemyNode); // set child node
+        enemyNodeIndex++;
     }
+
 
     // 4. bullets node pool update
     bulletsGroupNode.children.clear();
@@ -926,6 +949,15 @@ int main(int argc, char** argv) {
     for(int i = 0; i < MAX_BULLETS; i++) {
         bulletNodePool[i].scale = Vec3(0.02f, 0.02f, 0.02f); 
     }
+
+    enemyOrbitEntityNodePool.resize(MAX_ENEMIES * MAX_ENEMY_ORBITS);
+    for(int i=0 ; i<MAX_ENEMIES * MAX_ENEMY_ORBITS ; i++) {
+        enemyOrbitEntityNodePool[i].model = &sphereModel;
+        enemyOrbitEntityNodePool[i].scale = Vec3(0.05f, 0.05f, 0.05f);
+        enemyOrbitEntityNodePool[i].color = Vec3(1.0f, 0.5f, 0.0f);
+    }
+
+
     // initial enemies
     spawnEnemy( 0.0f,  0.6f, 0.12f, 10);
     spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
