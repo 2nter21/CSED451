@@ -148,8 +148,17 @@ struct Bullet {
 	bool isFromPlayer = true; // Distinguish player, enemy bullet
 };
 
-// Store all bullets
 std::vector<Bullet> bullets;
+
+// Bullet particle
+struct Particle {
+    Vec3 pos;
+    Vec3 velocity;
+    float lifetime;
+    Vec3 color;
+};
+
+std::vector<Particle> particles;
 
 // Handle key states
 std::map<unsigned char, bool> keyState;
@@ -167,15 +176,6 @@ const float BULLET_SIZE = 0.015f;
 // Camera shake
 int shakeTimer = 0;
 float shakeManitude = 0.02f;
-
-
-// ------------------
-// Vertex arrays
-// ------------------
-//GLfloat playerVertices[30];
-//GLfloat squareVertices[8];
-//GLfloat circleVertices[2 * (1 + 36 + 1) /*center + 36 segments + back to first point*/];
-//GLfloat bossVertices[2*(1+36+10)];
 
 
 // 3D models
@@ -198,12 +198,15 @@ Node orbitGroupNode;
 Node enemiesGroupNode;
 Node bulletsGroupNode;
 
+
+
 const int MAX_ORBIENTITIES = 5;
 const int MAX_ENEMIES = 3;
 const int MAX_BULLETS = 500;
 std::vector<Node> orbitEntityNodePool;
 std::vector<Node> enemyNodePool;
 std::vector<Node> bulletNodePool;
+
 
 
 static inline float lerp(float a, float b, float t) {
@@ -405,6 +408,47 @@ void drawBoundingBox() {
 
     glEnd();
 }
+
+void bulletParticleEffect(float x, float y) {
+    const int NUM_PARTICLES = 8;
+    const float SPREAD_SPEED = 0.3f;
+    const float PARTICLE_LIFETIME = 0.2f;
+
+    for (int i=0 ; i<NUM_PARTICLES ; i++) {
+        float angle = (2.0f * PI * i) / NUM_PARTICLES;
+
+        Particle p;
+        p.pos = Vec3(x, y, 0.0f);
+
+        p.velocity.x = cos(angle) * SPREAD_SPEED;
+        p.velocity.y = sin(angle) * SPREAD_SPEED;
+        p.velocity.z = 0.0f;
+
+        p.lifetime = PARTICLE_LIFETIME;
+        p.color = Vec3(1.0f, 1.0f, 0.0f);
+
+        particles.push_back(p);
+    }
+}
+
+void drawParticleEffect() {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_POINT_SMOOTH);
+    glPointSize(5.0f);
+    glBegin(GL_POINTS);
+    for(const auto& p : particles) {
+        float lifeRatio = std::max(0.0f, p.lifetime / 0.2f);
+
+        glColor4f(p.color.x, p.color.y, p.color.z, lifeRatio);
+        glVertex3f(p.pos.x, p.pos.y, p.pos.z);
+    }
+    glEnd();
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_POINT_SMOOTH);
+}
 // ------------------
 
 // Fuction for collision detection
@@ -576,6 +620,7 @@ void display() {
 
     updateSceneGraph();
     rootNode.drawRecursive();
+    drawParticleEffect();
     glPopMatrix();
 
 
@@ -634,6 +679,19 @@ void updateBullets() {
     );
 }
 
+void updateParticles(float dt) {
+    for(auto p = particles.begin() ; p != particles.end() ; ) {
+        p->pos.x += p->velocity.x * dt;
+        p->pos.y += p->velocity.y * dt;
+        p->pos.z += p->velocity.z * dt;
+        p->lifetime -= dt;
+        if(p->lifetime <= 0.0f)
+            p = particles.erase(p);
+        else
+            ++p;
+    }
+}
+
 void handleCollisions() {
     // Player bullet collision with enemy
     for (auto it = bullets.begin(); it != bullets.end();) {
@@ -643,6 +701,7 @@ void handleCollisions() {
             if (!e.isAlive) continue;
             if (e.hitTest(it->x, it->y, 0.01f)) {
                 e.onHit(1);
+                bulletParticleEffect(it->x, it->y);
                 it = bullets.erase(it);
                 erased = true;
                 break;
@@ -729,6 +788,7 @@ void timer(int value) {
 
         // Bullet handling
         updateBullets();
+        updateParticles(dt);
         handleCollisions();
 
         // Player respawn
