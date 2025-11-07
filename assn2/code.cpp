@@ -536,7 +536,7 @@ void setCameraViews(int viewType, float pX, float pY) {
             0.0f, 1.0f, 0.0f);
         break;
     case 2: // 2. third-person view
-        gluLookAt(pX, pY - 2.5f, 2.0f,
+        gluLookAt(pX, pY - 1.0f, 1.0f,
             pX, pY, 0.0f,
             0.0f, 1.0f, 0.0f);
         break;
