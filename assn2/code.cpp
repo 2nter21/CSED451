@@ -323,7 +323,7 @@ void drawPlayer() {
 void drawBullets() {
     for (auto& b : bullets) {
 
-        // Player bullet : two yellow rectangles
+        // Player bullet : two yellow spheres
         if (b.isFromPlayer)
         {
 
@@ -551,7 +551,7 @@ void updateSceneGraph() {
     playerNode.isVisible = isPlayerAlive;
 
     // 2. plyer orbiting node pool update
-    orbitGroupNode.children.clear(); // ('자식'... ...'싹'... ...'비우기'!)
+    orbitGroupNode.children.clear();
     if (isPlayerAlive) {
         const float orbitRadius = 0.4f;
         float timeAngle = glutGet(GLUT_ELAPSED_TIME) * orbitSpeed;
@@ -927,8 +927,6 @@ int main(int argc, char** argv) {
     starModel.load("assets/star.obj");
     triangleModel.load("assets/triangle.obj");
 
-    /*initializeVA();*/ // Initialize vertex arrays 
-
     // intialize node pool
     orbitEntityNodePool.resize(MAX_ORBIENTITIES);
     for(int i = 0; i < MAX_ORBIENTITIES; i++) {
@@ -957,8 +955,7 @@ int main(int argc, char** argv) {
         enemyOrbitEntityNodePool[i].color = Vec3(1.0f, 0.5f, 0.0f);
     }
 
-
-    // initial enemies
+    // initialize enemies
     spawnEnemy( 0.0f,  0.6f, 0.12f, 10);
     spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
     spawnEnemy( 0.6f,  0.45f,0.07f, 3);
@@ -981,11 +978,6 @@ int main(int argc, char** argv) {
     glutTimerFunc(0, timer, 0);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    /*
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluOrtho2D(-1, 1, -1, 1);
-    */
     glEnable(GL_DEPTH_TEST);
 
     glutMainLoop();
