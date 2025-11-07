@@ -56,9 +56,35 @@ README.md
 * entity containers : `enemies`, `bullets`, `particles`
 * Node Pools : `orbitEntityNodePool`, `enemyNodePool`, `bulletNodePool`, `enemyOrbitEntityNodePool`
 
-* `processInput` : `ketState` 확인 및 이동 처리
-* `updateBullets` : 
+* `spawnEnemy` : `enemies`에 새로운 Enemy 추가
+* `bulletParticleEffect` : 플레이어 bullet이 적에게 충돌했을 때, `particles`에 새로운 파티클 추가
+* `boostParticleEffect` : 플레이어가 w키 입력으로 앞으로 전진할 때, `particles`에 새로운 파티클 추가
 
+* `processInput` : `ketState` 확인 및 이동 처리
+* `handleKeyDown` : 키다운 핸들링
+* `handleKeyUp` : 키업 핸들링
+* `updateBullets` : `bullets` 업데이트, 화면 밖의 `bullet` 삭제
+* `updateParticles` : `particles` 업데이트, 일정 시간 이상 유지된 `particle` 삭제
+
+* `drawPlayer` : 플레이어 오브젝트(jetModel) draw
+* `drawBullets` : Bullet 오브젝트들(sphereModel) draw
+* `drawPlayerOrbitingEntities` : 플레이어 주변을 playerLives개의 회전하는 엔티티들(starModel) draw
+* `drawBoundingBox` : 노란색 선으로 구분되는 정육면체 구역(플레이어 이동 가능 구역) draw
+* `drawParticleEffect` : 파티클 draw
+* `drawText` : 텍스트 draw
+
+* `reactCollision` : 충돌 감지
+* `handleCollisions` : 충돌 발생 시 내부 처리
+
+* `setGraphicStyle` : 그래픽 스타일 변경
+* `setCameraView` : 카메라 시점 변경
+* `updateSceneGraph` : 씬 그래프 변경사항 업데이트
+
+* `display` : 카메라 진동 효과, rootNode 호출하여 엔티티들 draw, 2D UI draw
+
+* `timer` : 충돌 처리 총괄, `bullets`와 `particles` 업데이트, 플레이어 리스폰
+
+* `main` : 변수 초기화 및 환경설정, glutinit, glewinit, 3D 모델 로드, Node Pool 초기화, 씬 그래프 설정, 각종 함수를 게임 플레이 도중 반복해서 실행되도록 설정
 # Author
 - Team Name: openGameLab
 - Team Member #1: 안재영 / 20220019 / enter21
