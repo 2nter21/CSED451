@@ -150,7 +150,6 @@ struct Bullet {
 
 std::vector<Bullet> bullets;
 
-// Bullet particle
 struct Particle {
     Vec3 pos;
     Vec3 velocity;

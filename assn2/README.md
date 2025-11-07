@@ -10,6 +10,8 @@ CSED451 Computer Graphics Assignment1 & 2
 * 이동 : W, A, S, D
 * 공격 : Space
 * 재시작 : R
+* 그래픽 스타일 변경 : Q
+* 카메라 시점 변경 : C
 
 # How To Build
 1. Powershell을 사용, 저장소 루트로 이동
@@ -27,6 +29,8 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 # Project Structure
 ```
+/assets
+    -.obj
 /bin
     freeglut.dll
     glew32.dll
@@ -42,45 +46,18 @@ README.md
 ```
 
 # Code Overview
-* `initializeVA` : 정점 배열 initialize
+* `Modle` class : .obj 파일에서 데이터 load(), draw()로 glVertexPointer 방식으로 렌더링
+* `Vec3` struct : x, y, z를 가지는 3D 벡터 구조체
+* `Node` struct : 씬 그래프 기본 단위. 속성 및 model, children을 가지고 drawRecursive로 재귀적 draw
+* `Bullet` struct : 게임 탄환 데이터. 위치, 속도, 적/플레이어 여부 저장
+* `Particle` struct : 파티클 이펙트 데이터. 위치, 속도, 생존 시간, 색 저장
+* `Enemy` struct : 적 데이터. 체력, 생존 여부 저장 및 update 함수로 관리.
 
-* `Bullet struct` : 위치 저장 변수, 이동 방향 벡터 저장 변수, 탄막 속도 변수 등 다양한 변수
+* entity containers : `enemies`, `bullets`, `particles`
+* Node Pools : `orbitEntityNodePool`, `enemyNodePool`, `bulletNodePool`, `enemyOrbitEntityNodePool`
 
-* `updateBullets` : bullet들 업데이트, 화면 밖의 bullet 삭제
-
-* `Enemy` struct
-    * `update` : 각종 초기화, 적을 점점 화면 아래쪽으로 이동시킴
-    * `hitTest` : 충돌했는지 판별
-    * `onHit` : 충돌 시 내부 처리
-    * `draw` : 적 렌더링 (hierarchical animation)
-
-* `enemies` : Vector<Enemy> 타입의 Enemy 컨테이너
-* `spawnEnemy` : Vector 컨테이너에 새로운 Enemy 추가
-
-* `draw` functions
-    * `drawPlayer_` : 플레이어 모양 draw
-    * `drawSquare` : 사각형 draw
-    * `drawCircle` : 원 draw
-    * `drawBoss` : 적 모양 draw
-    * `drawPlayer` : 플레이어 오브젝트 draw
-    * `drawBullets` : Bullet 오브젝트들 draw
-    * `drawText` : 텍스트 draw
-    * `drawPlayerOrbitingEntities` : 플레이어 주변 회전하는 엔티티들(남은 목숨 수) draw
-
-* `display` : 모든 draw 함수 총괄
-
-* `Collision` functions
-    * rectCollision : 충돌 감지
-    * handleCollisions : 충돌 시 내부 처리
-
-* `Input` functions
-    * processInput : 키 입력 총괄, 키 입력에 따라 플레이어 위치 update, 플레이어 bullet 발사 관리
-    * handleKeyDown : 키다운 핸들링, 재시작 시 초기화
-    * handleKeyUp : 키업 핸들링
-
-* `timer` : Bullet, 리스폰 핸들링
-
-* `main` : 초기값 초기화 및 설정, glutinit, glewinit, 각종 함수를 게임 플레이 도중 반복해서 실행되도록 설정
+* `processInput` : `ketState` 확인 및 이동 처리
+* `updateBullets` : 
 
 # Author
 - Team Name: openGameLab
