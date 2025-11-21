@@ -1,15 +1,124 @@
 ﻿#include <GL/glew.h>
 #include <GL/freeglut.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 #include <map>
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <iostream>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+class Shader {
+public:
+    unsigned int ID; // shader program ID
+
+    // constrictor : make shader
+    Shader(const char* vertexPath, const char* fragmentPath) {
+        // 1. read file
+        std::string vertexCode;
+        std::string fragmentCode;
+        std::ifstream vShaderFile;
+        std::ifstream fShaderFile;
+
+        // error exception
+        vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+        fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+        try {
+            // open file
+            vShaderFile.open(vertexPath);
+            fShaderFile.open(fragmentPath);
+            std::stringstream vShaderStream, fShaderStream;
+
+            // read buffer info as stream
+            vShaderStream << vShaderFile.rdbuf();
+            fShaderStream << fShaderFile.rdbuf();
+
+            // close file
+            vShaderFile.close();
+            fShaderFile.close();
+
+            // stream -> string
+            vertexCode = vShaderStream.str();
+            fragmentCode = fShaderStream.str();
+        }
+        catch (std::ifstream::failure& e) {
+            std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: " << e.what() << std::endl;
+        }
+
+        const char* vShaderCode = vertexCode.c_str();
+        const char* fShaderCode = fragmentCode.c_str();
+
+        // 2. shader complie
+        unsigned int vertex, fragment;
+
+        // Vertex Shader
+        vertex = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertex, 1, &vShaderCode, NULL);
+        glCompileShader(vertex);
+        checkCompileErrors(vertex, "VERTEX");
+
+        // Fragment Shader
+        fragment = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragment, 1, &fShaderCode, NULL);
+        glCompileShader(fragment);
+        checkCompileErrors(fragment, "FRAGMENT");
+
+        // 3. shader program link (merge)
+        ID = glCreateProgram();
+        glAttachShader(ID, vertex);
+        glAttachShader(ID, fragment);
+        glLinkProgram(ID);
+        checkCompileErrors(ID, "PROGRAM");
+
+        // delete
+        glDeleteShader(vertex);
+        glDeleteShader(fragment);
+    }
+
+    // activate shader
+    void use() {
+        glUseProgram(ID);
+    }
+
+    // utility: find uniform variable and assign value
+    void setMat4(const std::string& name, const GLfloat* value) const {
+        glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, value);
+    }
+
+    void setVec3(const std::string& name, float x, float y, float z) const {
+        glUniform3f(glGetUniformLocation(ID, name.c_str()), x, y, z);
+    }
+
+private:
+    // error check
+    void checkCompileErrors(unsigned int shader, std::string type) {
+        int success;
+        char infoLog[1024];
+        if (type != "PROGRAM") {
+            glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+            if (!success) {
+                glGetShaderInfoLog(shader, 1024, NULL, infoLog);
+                std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+            }
+        }
+        else {
+            glGetProgramiv(shader, GL_LINK_STATUS, &success);
+            if (!success) {
+                glGetProgramInfoLog(shader, 1024, NULL, infoLog);
+                std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+            }
+        }
+    }
+};
+
+/*
 class Model {
 public:
     std::vector<float> vertices;
@@ -58,6 +167,77 @@ public:
         glDisableClientState(GL_VERTEX_ARRAY);
     }
 };
+*/
+class Model {
+public:
+    unsigned int VAO = 0;
+    unsigned int VBO = 0;
+    int vertexCount = 0;
+    std::vector<float> vertices;
+
+    Model() : vertexCount(0), VAO(0), VBO(0) {}
+
+    // destructor
+    ~Model() {
+        if (VAO != 0) glDeleteVertexArrays(1, &VAO);
+        if (VBO != 0) glDeleteBuffers(1, &VBO);
+    }
+
+    void load(const char* filename) {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warn;
+        std::string err;
+
+        // 1. read file
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename)) {
+            std::cerr << "Error: " << warn << err << std::endl;
+            return;
+        }
+
+        vertices.clear();
+        vertexCount = 0;
+
+        for (const auto& shape : shapes) {
+            for (const auto& index : shape.mesh.indices) {
+                vertices.push_back(attrib.vertices[3 * index.vertex_index + 0]);
+                vertices.push_back(attrib.vertices[3 * index.vertex_index + 1]);
+                vertices.push_back(attrib.vertices[3 * index.vertex_index + 2]);
+                vertexCount++;
+            }
+        }
+
+        // 1. generate VAO, VBO
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+
+        // 2. VAO binding
+        glBindVertexArray(VAO);
+
+        // 3. VBO binding, copy data
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+        // 4. attribute setting
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        // 5. unbinding
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+
+        // vertices.clear();
+    }
+
+    void draw() {
+        if (vertexCount == 0 || VAO == 0) return;
+
+        glBindVertexArray(VAO); // load setting
+        glDrawArrays(GL_TRIANGLES, 0, vertexCount); // draw
+        glBindVertexArray(0);   // unbind
+    }
+};
 
 struct Vec3 {
     float x = 0.0f, y = 0.0f, z = 0.0f;
@@ -95,6 +275,56 @@ struct Node {
     }
 
     // recursively draw
+    void drawRecursive(glm::mat4 parentTransform, Shader* shader) {
+        if (!isVisible) return;
+
+        // 1. make Local Matrix (T * R * S)
+        glm::mat4 localTransform = glm::mat4(1.0f);
+
+        // translation
+        localTransform = glm::translate(localTransform, glm::vec3(pos.x, pos.y, pos.z));
+
+        // rotation
+        localTransform = glm::rotate(localTransform, glm::radians(rot.x), glm::vec3(1.0f, 0.0f, 0.0f));
+        localTransform = glm::rotate(localTransform, glm::radians(rot.y), glm::vec3(0.0f, 1.0f, 0.0f));
+        localTransform = glm::rotate(localTransform, glm::radians(rot.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        // scaling
+        localTransform = glm::scale(localTransform, glm::vec3(scale.x, scale.y, scale.z));
+
+        // 2. final Global Matrix
+        glm::mat4 globalTransform = parentTransform * localTransform;
+
+        // 3. draw
+        if (model != nullptr && shader != nullptr) {
+            // send model matrix to shader
+            shader->setMat4("model", glm::value_ptr(globalTransform));
+
+            // send objectColor color to shader
+            shader->setVec3("objectColor", color.x, color.y, color.z);
+
+            // draw model (VAO)
+            model->draw();
+        }
+
+        // for drawing bounding box
+        if (customDrawFunc != nullptr) {
+            // 1. send current node's matrix(globalTransform) to shader
+            shader->setMat4("model", glm::value_ptr(globalTransform));
+
+            // 2. send color
+            shader->setVec3("objectColor", color.x, color.y, color.z);
+
+            // 3. draw
+            customDrawFunc();
+        }
+
+        // 4. recursive draw (maintain global matrix)
+        for (Node* child : children) {
+            child->drawRecursive(globalTransform, shader);
+        }
+    }
+    /*
     void drawRecursive() {
         if (!isVisible) {
             return;
@@ -120,6 +350,7 @@ struct Node {
         }
         glPopMatrix();
     }
+    */
 };
 
 const float PI = 3.14159265358979323846f;
@@ -176,7 +407,6 @@ const float BULLET_SIZE = 0.015f;
 int shakeTimer = 0;
 float shakeManitude = 0.02f;
 
-
 // 3D models
 Model donutModel;
 Model droneModel;
@@ -196,19 +426,24 @@ Node playerModelNode;
 Node orbitGroupNode;
 Node enemiesGroupNode;
 Node bulletsGroupNode;
-
-
+Node particlesGroupNode;
 
 const int MAX_ORBIENTITIES = 5;
 const int MAX_ENEMIES = 3;
 const int MAX_BULLETS = 500;
 const int MAX_ENEMY_ORBITS = 4;
+const int MAX_PARTICLES = 100;
 std::vector<Node> orbitEntityNodePool;
 std::vector<Node> enemyNodePool;
 std::vector<Node> bulletNodePool;
 std::vector<Node> enemyOrbitEntityNodePool;
+std::vector<Node> particleNodePool;
 
-
+Shader* myShader = nullptr;
+glm::mat4 g_viewMatrix = glm::mat4(1.0f); // 1.0f : identity matrix
+glm::mat4 g_projMatrix = glm::mat4(1.0f);
+unsigned int bboxVAO = 0;
+unsigned int bboxVBO = 0;
 
 static inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
@@ -378,6 +613,52 @@ void drawPlayerOrbitingEntities() {
     }
 }
 
+// initialize bounding box data (only one call in main)
+void initBoundingBox() {
+    // 상자를 이루는 8개 점의 좌표 (Min: -1, Max: 1)
+
+    float vertices[] = {
+        // floor
+        -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,
+
+        // ceiling
+        -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
+
+        // pillars
+        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,
+         1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f
+    };
+
+    glGenVertexArrays(1, &bboxVAO);
+    glGenBuffers(1, &bboxVBO);
+
+    glBindVertexArray(bboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, bboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void drawBoundingBox() {
+    if (bboxVAO == 0) return;
+
+    glBindVertexArray(bboxVAO);
+    glDrawArrays(GL_LINES, 0, 24);
+    glBindVertexArray(0);
+}
+/*
 void drawBoundingBox() {
     // bounding box scale
     float minX = -1.0f, maxX = 1.0f;
@@ -408,7 +689,7 @@ void drawBoundingBox() {
     glVertex3f(minX, maxY, minZ); glVertex3f(minX, maxY, maxZ);
 
     glEnd();
-}
+}*/
 
 void bulletParticleEffect(float x, float y) {
     const int NUM_PARTICLES = 8;
@@ -455,7 +736,7 @@ void boostParticleEffect(float playerX, float playerY) {
         particles.push_back(p);
     }
 }
-
+/*
 void drawParticleEffect() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -473,7 +754,7 @@ void drawParticleEffect() {
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);
     glDisable(GL_POINT_SMOOTH);
-}
+}*/
 // ------------------
 
 // Fuction for collision detection
@@ -488,7 +769,7 @@ void drawText(float x, float y, const std::string& text) {
         glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
     }
 }
-
+/*
 void setGraphicStyle(int style) {
     if (style == 0) {
         // 0 = opaque polygon style
@@ -540,6 +821,78 @@ void setCameraViews(int viewType, float pX, float pY) {
             0.0f, 1.0f, 0.0f);
         break;
     }
+}
+*/
+
+void setCameraViews(int viewType, float pX, float pY) {
+    float aspectRatio = 800.0f / 600.0f;
+    // 1. Initialze
+    g_projMatrix = glm::mat4(1.0f);
+    g_viewMatrix = glm::mat4(1.0f);
+
+    // 2. Projection Matrix calculate
+    if (viewType == 1) { // Top View (Orthographic)
+        g_projMatrix = glm::ortho(-1.2f * aspectRatio, 1.2f * aspectRatio, -1.2f, 1.2f, -10.0f, 10.0f);
+    }
+    else { // Perspective (Top or Third-person)
+        g_projMatrix = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 100.0f);
+    }
+
+    // 3. View Matrix calculate 
+    if (viewType == 0) { // Top View (Perspective)
+        g_viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    }
+    else if (viewType == 1) { // Top View (Orthographic)
+        g_viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    }
+    else if (viewType == 2) { // Third-person View
+        g_viewMatrix = glm::lookAt(glm::vec3(pX, pY - 1.0f, 1.0f), glm::vec3(pX, pY, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    }
+}
+
+void setGraphicStyleThenRender() {
+    glm::mat4 identityMatrix = glm::mat4(1.0f);
+
+    // 0 = opaque polygon style
+    if (currentGraphicStyle == 0) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        rootNode.drawRecursive(identityMatrix, myShader);
+    }
+    // 1 = wireframe style
+    else if (currentGraphicStyle == 1) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        rootNode.drawRecursive(identityMatrix, myShader);
+    }
+    // 2 = wireframe style with hidden line removal
+    else if (currentGraphicStyle == 2) {
+        // 1. fill depth buffer
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f);
+
+        // ban color (transparency)
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+        // draw (not in screen, only in depth buffer)
+        rootNode.drawRecursive(identityMatrix, myShader);
+
+        // recovering
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); // allow color
+        glDisable(GL_POLYGON_OFFSET_FILL);
+
+        // 2. draw wireframe
+        // lines behind transparency plane do not draw
+        // 이제 깊이 버퍼 덕분에, 아까 그린 투명한 면 뒤에 있는 선은 안 그려져!
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+        // (additional) good to see: thicker line
+        // glLineWidth(1.5f); 
+        rootNode.drawRecursive(identityMatrix, myShader);
+        // glLineWidth(1.0f);
+    }
+
+    // recover for next frame
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void updateSceneGraph() {
@@ -657,7 +1010,32 @@ void updateSceneGraph() {
             bulletsGroupNode.children.push_back(bulletNode);
         }
     }
+
+    // 5. particles node pool update
+    particlesGroupNode.children.clear();
+    int particleNodeIndex = 0;
+
+    for (const auto& p : particles) {
+        if (particleNodeIndex >= MAX_PARTICLES) break;
+
+        Node* particleNode = &particleNodePool[particleNodeIndex++];
+
+        particleNode->isVisible = true;
+        particleNode->model = &triangleModel;
+
+        // apply particle color and transparency
+        particleNode->color = p.color;
+
+        particleNode->pos = p.pos;
+        particleNode->scale = Vec3(0.02f, 0.02f, 0.02f);
+
+        // little rotation (visual)
+        particleNode->rot.z += 10.0f;
+
+        particlesGroupNode.children.push_back(particleNode);
+    }
 }
+/*
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     setCameraViews(currentCameraView, playerX, playerY);
@@ -707,6 +1085,78 @@ void display() {
     if (currentGraphicStyle == 1) drawText(-0.98f, 0.85f, "Wireframe style");
 
     // rollback to 3D drawing
+    glEnable(GL_DEPTH_TEST);
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    glutSwapBuffers();
+}*/
+
+void display() {
+    // 1. clear screen (color & depth buffer)
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // 2. calculate camera matrix (GLM)
+    setCameraViews(currentCameraView, playerX, playerY);
+
+    // 3. camera shake effect
+    if (shakeTimer > 0) {
+        float offsetX = ((rand() % 100) / 100.0f - 0.5f) * 2 * shakeManitude;
+        float offsetY = ((rand() % 100) / 100.0f - 0.5f) * 2 * shakeManitude;
+        g_viewMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(offsetX, offsetY, 0.0f)) * g_viewMatrix;
+
+        shakeTimer--;
+    }
+
+    // 4. activate shader & send camera info
+    if (myShader != nullptr) {
+        myShader->use();
+
+        // send View, Projection matrix to shader
+        myShader->setMat4("view", glm::value_ptr(g_viewMatrix));
+        myShader->setMat4("projection", glm::value_ptr(g_projMatrix));
+
+        // 5. Scene Graph update & draw
+        updateSceneGraph();
+        setGraphicStyleThenRender();
+    }
+
+    // 6. 2D UI drawing
+    glUseProgram(0); // turn off shader
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(-1, 1, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    glDisable(GL_DEPTH_TEST);
+
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    std::stringstream ss;
+    ss << "Lives: " << playerLives;
+    drawText(-0.98f, 0.95f, ss.str());
+
+    if (isGameOver) {
+        drawText(-0.1f, 0.0f, "GAME OVER");
+    }
+    else if (isGameClear) {
+        drawText(-0.1f, 0.0f, "GAME CLEAR!");
+    }
+
+    if (currentCameraView == 0) drawText(-0.98f, 0.90f, "Top View(Perspective)");
+    if (currentCameraView == 1) drawText(-0.98f, 0.90f, "Top View(Orthographic)");
+    if (currentCameraView == 2) drawText(-0.98f, 0.90f, "Third-person View");
+    if (currentGraphicStyle == 0) drawText(-0.98f, 0.85f, "Opaque Polygon Style");
+    if (currentGraphicStyle == 1) drawText(-0.98f, 0.85f, "Wireframe style");
+    if (currentGraphicStyle == 2) drawText(-0.98f, 0.85f, "Wireframe style(hidden line removal)");
+
+    // recover 3D setting
     glEnable(GL_DEPTH_TEST);
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
@@ -877,7 +1327,7 @@ void handleKeyDown(unsigned char key, int x, int y) {
     }
 
     if (key == 'q' || key == 'Q') {
-        currentGraphicStyle = (currentGraphicStyle + 1) % 2;
+        currentGraphicStyle = (currentGraphicStyle + 1) % 3;
     }
 
     // Reset condition
@@ -914,6 +1364,10 @@ int main(int argc, char** argv) {
     glutCreateWindow("Bullet Hell Shooter");
 
     glewInit();
+    
+    initBoundingBox();
+    // shader load
+    myShader = new Shader("shader.vs", "shader.fs");
 
     donutModel.load("assets/donut.obj");
     droneModel.load("assets/drone.obj");
@@ -954,6 +1408,11 @@ int main(int argc, char** argv) {
         enemyOrbitEntityNodePool[i].color = Vec3(1.0f, 0.5f, 0.0f);
     }
 
+    particleNodePool.resize(MAX_PARTICLES);
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        particleNodePool[i].model = &triangleModel;
+    }
+
     // initialize enemies
     spawnEnemy( 0.0f,  0.6f, 0.12f, 10);
     spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
@@ -961,6 +1420,7 @@ int main(int argc, char** argv) {
 
     rootNode.children.push_back(&bboxNode);
     bboxNode.customDrawFunc = &drawBoundingBox;
+    bboxNode.color = Vec3(1.0f, 1.0f, 0.0f);
     rootNode.children.push_back(&playerNode);
     playerNode.children.push_back(&playerModelNode);
     playerModelNode.model = &jetModel;
@@ -970,6 +1430,7 @@ int main(int argc, char** argv) {
     playerNode.children.push_back(&orbitGroupNode);
     rootNode.children.push_back(&enemiesGroupNode);
     rootNode.children.push_back(&bulletsGroupNode);
+    rootNode.children.push_back(&particlesGroupNode);
 
     glutDisplayFunc(display);
     glutKeyboardFunc(handleKeyDown);
@@ -978,6 +1439,7 @@ int main(int argc, char** argv) {
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
 
     glutMainLoop();
     return 0;
