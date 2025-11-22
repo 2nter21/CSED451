@@ -118,56 +118,7 @@ private:
     }
 };
 
-/*
-class Model {
-public:
-    std::vector<float> vertices;
-    int vertexCount;
 
-    Model() : vertexCount(0) {}
-
-    void load(const char* filename) {
-        tinyobj::attrib_t attrib;
-        std::vector<tinyobj::shape_t> shapes;
-        std::vector<tinyobj::material_t> materials;
-        std::string warn;
-        std::string err;
-
-        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename)) {
-            std::cerr << "Error: " << warn << err << std::endl;
-            return;
-        }
-
-        vertices.clear();
-        vertexCount = 0;
-
-        for (const auto& shape : shapes) {
-            for (const auto& index : shape.mesh.indices) {
-                vertices.push_back(
-                    attrib.vertices[3 * index.vertex_index + 0]
-                );
-                vertices.push_back(
-                    attrib.vertices[3 * index.vertex_index + 1]
-                );
-                vertices.push_back(
-                    attrib.vertices[3 * index.vertex_index + 2]
-                );
-
-                vertexCount++;
-            }
-        }
-    }
-
-    void draw() {
-        if (vertexCount == 0) return;
-
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glVertexPointer(3, GL_FLOAT, 0, vertices.data());
-        glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-        glDisableClientState(GL_VERTEX_ARRAY);
-    }
-};
-*/
 class Model {
 public:
     unsigned int VAO = 0;
@@ -324,33 +275,7 @@ struct Node {
             child->drawRecursive(globalTransform, shader);
         }
     }
-    /*
-    void drawRecursive() {
-        if (!isVisible) {
-            return;
-        }
-        glPushMatrix();
-        glTranslatef(pos.x, pos.y, pos.z);
-        glRotatef(rot.x, 1.0f, 0.0f, 0.0f);
-        glRotatef(rot.y, 0.0f, 1.0f, 0.0f);
-        glRotatef(rot.z, 0.0f, 0.0f, 1.0f);
-        glScalef(scale.x, scale.y, scale.z);
 
-        if (model != nullptr) {
-            glColor3f(color.x, color.y, color.z);
-            model->draw();
-        }
-
-        if (customDrawFunc != nullptr) {
-            customDrawFunc();
-        }
-
-        for (Node* child : children) {
-            child->drawRecursive();
-        }
-        glPopMatrix();
-    }
-    */
 };
 
 const float PI = 3.14159265358979323846f;
@@ -359,7 +284,7 @@ const float PI = 3.14159265358979323846f;
 float playerX = 0.0f;
 float playerY = 0.0f;
 int currentCameraView = 0; // 0: top view(perspective), 1: top view(orthographic), 2: third-person view
-int currentGraphicStyle = 0;// 0: opaque polygon style, 1: wireframe style
+int currentGraphicStyle = 0;// 0: opaque polygon style, 1: wireframe style, 2: hidden line removal
 const float playerSize = 0.3f;
 float orbitAngle = 0.0f; // Angle for entities around player
 float orbitSpeed = 0.005f;
@@ -407,7 +332,7 @@ const float BULLET_SIZE = 0.015f;
 int shakeTimer = 0;
 float shakeManitude = 0.02f;
 
-// 3D models
+// 3D models (Assuming these files exist in 'assets/' directory)
 Model donutModel;
 Model droneModel;
 Model jetModel;
@@ -419,6 +344,7 @@ Model squareModel;
 Model starModel;
 Model triangleModel;
 
+// Scene Graph Nodes
 Node rootNode;
 Node bboxNode;
 Node playerNode;
@@ -447,13 +373,6 @@ unsigned int bboxVBO = 0;
 
 static inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
-}
-static inline void lerpColor(float aR, float aG, float aB,
-                             float bR, float bG, float bB,
-                             float t, float &oR, float &oG, float &oB) {
-    oR = lerp(aR, bR, t);
-    oG = lerp(aG, bG, t);
-    oB = lerp(aB, bB, t);
 }
 
 // Enemy structure
@@ -518,99 +437,12 @@ struct Enemy {
             shakeTimer += 12;
         }
     }
-
-    void draw() {
-        if(!isAlive) return;
-        glPushMatrix();
-        glTranslatef(x, y, 0.0f);
-        glRotatef(90.0f, 1.0f, 0.0f, 0.0f);
-        glScalef(0.3f, 0.3f, 0.3f);
-        glColor3f(0.8f, 0.5f, 1.0f);
-        droneModel.draw();
-        glPopMatrix();
-    }
 };
 
 std::vector<Enemy> enemies;
 
 void spawnEnemy(float x, float y, float size = 0.2f, int health = 5) {
     enemies.emplace_back(x, y, size, health);
-}
-
-// ------------------
-// Objects drawing functions
-// ------------------
-void drawPlayer() {
-    if (!isPlayerAlive) return;
-
-    glPushMatrix();
-    glTranslatef(playerX, playerY, 0.0f);
-    glColor3f(0.0f, 1.0f, 0.0f);
-    glScalef(0.02f, 0.02f, 0.02f);
-    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
-    jetModel.draw();
-    glPopMatrix();
-}
-
-
-
-void drawBullets() {
-    for (auto& b : bullets) {
-
-        // Player bullet : two yellow spheres
-        if (b.isFromPlayer)
-        {
-
-            glPushMatrix();
-            glTranslatef(b.x - 0.75f * BULLET_SIZE, b.y, 0.0f);
-            glColor3f(0.5f, 0.8f, 1.0f);
-            glScalef(0.02f, 0.02f, 0.02f);
-            sphereModel.draw();
-
-            glPopMatrix();
-
-            glPushMatrix();
-            glTranslatef(b.x + 0.75f * BULLET_SIZE, b.y, 0.0f);
-            glColor3f(0.5f, 0.8f, 1.0f);
-            glScalef(0.02f, 0.02f, 0.02f);
-            sphereModel.draw();
-
-            glPopMatrix();
-        }
-
-		// Enemy bullet : red circle
-        else
-        {
-            glPushMatrix();
-            glTranslatef(b.x, b.y, 0.0f);            
-            glColor3f(1.0f, 0.0f, 0.0f);
-            glScalef(0.02f, 0.02f, 0.02f);
-            sphereModel.draw();
-            glPopMatrix();
-        }        
-    }
-}
-
-void drawPlayerOrbitingEntities() {
-    if (!isPlayerAlive) return;
-
-    const float orbitRadius = 0.4f;
-    const float entityRadius = 0.04f;
-
-    for (int i = 0; i < playerLives; ++i) {
-        float angle = orbitAngle + i * (2.0f * PI / playerLives) + glutGet(GLUT_ELAPSED_TIME) * orbitSpeed;
-
-        float ex = playerX + orbitRadius * cos(angle);
-        float ey = playerY + orbitRadius * sin(angle);
-
-        glPushMatrix();
-        glTranslatef(ex, ey, 0.0f);
-        glScalef(0.02f, 0.02f, 0.02f);
-        glRotatef(glutGet(GLUT_ELAPSED_TIME) * 0.1f, 0.5f, 1.0f, 0.0f);
-        glColor3f(0.0f, 1.0f, 1.0f);
-        starModel.draw();
-        glPopMatrix();
-    }
 }
 
 // initialize bounding box data (only one call in main)
@@ -658,38 +490,7 @@ void drawBoundingBox() {
     glDrawArrays(GL_LINES, 0, 24);
     glBindVertexArray(0);
 }
-/*
-void drawBoundingBox() {
-    // bounding box scale
-    float minX = -1.0f, maxX = 1.0f;
-    float minY = -1.0f, maxY = 1.0f;
-    float minZ = -1.0f, maxZ = 1.0f;
 
-    glColor3f(1.0f, 1.0f, 0.0f); // color: yellow
-
-    // line drawing
-    glBegin(GL_LINES);
-
-    // floor
-    glVertex3f(minX, minY, minZ); glVertex3f(maxX, minY, minZ);
-    glVertex3f(maxX, minY, minZ); glVertex3f(maxX, maxY, minZ);
-    glVertex3f(maxX, maxY, minZ); glVertex3f(minX, maxY, minZ);
-    glVertex3f(minX, maxY, minZ); glVertex3f(minX, minY, minZ);
-
-    // ceiling
-    glVertex3f(minX, minY, maxZ); glVertex3f(maxX, minY, maxZ);
-    glVertex3f(maxX, minY, maxZ); glVertex3f(maxX, maxY, maxZ);
-    glVertex3f(maxX, maxY, maxZ); glVertex3f(minX, maxY, maxZ);
-    glVertex3f(minX, maxY, maxZ); glVertex3f(minX, minY, maxZ);
-
-    // column
-    glVertex3f(minX, minY, minZ); glVertex3f(minX, minY, maxZ);
-    glVertex3f(maxX, minY, minZ); glVertex3f(maxX, minY, maxZ);
-    glVertex3f(maxX, maxY, minZ); glVertex3f(maxX, maxY, maxZ);
-    glVertex3f(minX, maxY, minZ); glVertex3f(minX, maxY, maxZ);
-
-    glEnd();
-}*/
 
 void bulletParticleEffect(float x, float y) {
     const int NUM_PARTICLES = 8;
@@ -736,93 +537,12 @@ void boostParticleEffect(float playerX, float playerY) {
         particles.push_back(p);
     }
 }
-/*
-void drawParticleEffect() {
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_POINT_SMOOTH);
-    glPointSize(5.0f);
-    glBegin(GL_POINTS);
-    for(const auto& p : particles) {
-        float lifeRatio = std::max(0.0f, p.lifetime / 0.2f);
-
-        glColor4f(p.color.x, p.color.y, p.color.z, lifeRatio);
-        glVertex3f(p.pos.x, p.pos.y, p.pos.z);
-    }
-    glEnd();
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_BLEND);
-    glDisable(GL_POINT_SMOOTH);
-}*/
-// ------------------
 
 // Fuction for collision detection
 bool rectCollision(float x1, float y1, float s1, float x2, float y2, float s2) {
     return std::abs(x1 - x2) < (s1 + s2) / 2 && std::abs(y1 - y2) < (s1 + s2) / 2;
 }
 
-void drawText(float x, float y, const std::string& text) {
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glRasterPos2f(x, y);
-    for (char c : text) {
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, c);
-    }
-}
-/*
-void setGraphicStyle(int style) {
-    if (style == 0) {
-        // 0 = opaque polygon style
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
-    else {
-        // 1 = wireframe style
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    }
-}
-
-void setCameraViews(int viewType, float pX, float pY) {
-    // lens setting
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-
-    float aspectRatio = 800.0f / 600.0f;
-
-    switch (viewType) {
-    case 0: // 0. top view(perspective)
-        gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
-        break;
-    case 1: // 1. top view(orthographic)
-        glOrtho(-1.2f * aspectRatio, 1.2f * aspectRatio, -1.2f, 1.2f, -10.0f, 10.0f);
-        break;
-    case 2: // 2. third-person view
-        gluPerspective(60.0f, aspectRatio, 0.1f, 100.0f);
-        break;
-    }
-
-    // setting camera position
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    switch (viewType) {
-    case 0: // 0. top view(perspective)
-        gluLookAt(0.0f, 0.0f, 2.5f,
-            0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f);
-        break;
-    case 1: // 1. top view(orthographic)
-        gluLookAt(0.0f, 0.0f, 2.5f,
-            0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f);
-        break;
-    case 2: // 2. third-person view
-        gluLookAt(pX, pY - 1.0f, 1.0f,
-            pX, pY, 0.0f,
-            0.0f, 1.0f, 0.0f);
-        break;
-    }
-}
-*/
 
 void setCameraViews(int viewType, float pX, float pY) {
     float aspectRatio = 800.0f / 600.0f;
@@ -856,11 +576,13 @@ void setGraphicStyleThenRender() {
     // 0 = opaque polygon style
     if (currentGraphicStyle == 0) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glDisable(GL_CULL_FACE); // Bbox is lines, models are 3D
         rootNode.drawRecursive(identityMatrix, myShader);
     }
     // 1 = wireframe style
     else if (currentGraphicStyle == 1) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glDisable(GL_CULL_FACE);
         rootNode.drawRecursive(identityMatrix, myShader);
     }
     // 2 = wireframe style with hidden line removal
@@ -874,6 +596,8 @@ void setGraphicStyleThenRender() {
         glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
         // draw (not in screen, only in depth buffer)
+        glEnable(GL_CULL_FACE); // Use culling for better performance
+        glCullFace(GL_BACK);
         rootNode.drawRecursive(identityMatrix, myShader);
 
         // recovering
@@ -881,18 +605,14 @@ void setGraphicStyleThenRender() {
         glDisable(GL_POLYGON_OFFSET_FILL);
 
         // 2. draw wireframe
-        // lines behind transparency plane do not draw
-        // 이제 깊이 버퍼 덕분에, 아까 그린 투명한 면 뒤에 있는 선은 안 그려져!
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-        // (additional) good to see: thicker line
-        // glLineWidth(1.5f); 
+        glDisable(GL_CULL_FACE); // Disable culling for lines/bounding box
         rootNode.drawRecursive(identityMatrix, myShader);
-        // glLineWidth(1.0f);
     }
 
     // recover for next frame
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_CULL_FACE); // Default back to disabled
 }
 
 void updateSceneGraph() {
@@ -909,7 +629,7 @@ void updateSceneGraph() {
         float timeAngle = glutGet(GLUT_ELAPSED_TIME) * orbitSpeed;
 
         for (int i = 0; i < playerLives; ++i) {
-            Node* orbitEntityNode = &orbitEntityNodePool[i];
+            Node* orbitEntityNode = &orbitEntityNodePool[i % MAX_ORBIENTITIES]; // Use modulo for safety
 
             float angle = orbitAngle + i * (2.0f * PI / playerLives) + timeAngle;
             orbitEntityNode->pos.x = orbitRadius * cos(angle);
@@ -949,17 +669,20 @@ void updateSceneGraph() {
         enemyNode->color.y = lerp(damagedColor.y, healthyColor.y, hpRatio);
         enemyNode->color.z = lerp(damagedColor.z, healthyColor.z, hpRatio);
 
+        // Enemy orbiting entities
         for(int i=0 ; i<MAX_ENEMY_ORBITS ; i++) {
             int sphereNodeIndex = enemyNodeIndex * MAX_ENEMY_ORBITS + i;
-            Node* sphereNode = &enemyOrbitEntityNodePool[sphereNodeIndex];
+            if (sphereNodeIndex < enemyOrbitEntityNodePool.size()) {
+                Node* sphereNode = &enemyOrbitEntityNodePool[sphereNodeIndex];
 
-            float angle = time * ENEMY_ORBIT_SPEED + (i * (2.0f * PI / MAX_ENEMY_ORBITS));
+                float angle = time * ENEMY_ORBIT_SPEED + (i * (2.0f * PI / MAX_ENEMY_ORBITS));
 
-            sphereNode->pos.x = cos(angle) * ENEMY_ORBIT_RADIUS;
-            sphereNode->pos.y = sin(angle) * ENEMY_ORBIT_RADIUS;
-            sphereNode->pos.z = 0.0f;
+                sphereNode->pos.x = cos(angle) * ENEMY_ORBIT_RADIUS;
+                sphereNode->pos.y = sin(angle) * ENEMY_ORBIT_RADIUS;
+                sphereNode->pos.z = 0.0f;
 
-            enemyNode->children.push_back(sphereNode);
+                enemyNode->children.push_back(sphereNode);
+            }
         }
 
         enemiesGroupNode.children.push_back(enemyNode); // set child node
@@ -972,10 +695,12 @@ void updateSceneGraph() {
     int bulletNodeIndex = 0;
 
     for (const auto& bullet : bullets) {
+        if (bulletNodeIndex >= MAX_BULLETS) break;
+
         if (bullet.isFromPlayer) {
             if (bulletNodeIndex + 1 >= MAX_BULLETS) break;
 
-            // left bullet
+            // left bullet (Rice model)
             Node* bulletNodeL = &bulletNodePool[bulletNodeIndex++];
             bulletNodeL->isVisible = true;
             bulletNodeL->model = &riceModel;
@@ -985,7 +710,7 @@ void updateSceneGraph() {
             bulletNodeL->rot = Vec3(90.0f, 0.0f, -15.0f);
             bulletsGroupNode.children.push_back(bulletNodeL);
 
-            // right bullet
+            // right bullet (Rice model)
             Node* bulletNodeR = &bulletNodePool[bulletNodeIndex++];
             bulletNodeR->isVisible = true;
             bulletNodeR->model = &riceModel;
@@ -998,8 +723,6 @@ void updateSceneGraph() {
         }
         else {
             // enemy bullet: red sphere
-            if (bulletNodeIndex >= MAX_BULLETS) break;
-
             Node* bulletNode = &bulletNodePool[bulletNodeIndex++];
             bulletNode->isVisible = true;
             bulletNode->model = &sphereModel;
@@ -1023,11 +746,11 @@ void updateSceneGraph() {
         particleNode->isVisible = true;
         particleNode->model = &triangleModel;
 
-        // apply particle color and transparency
+        // apply particle color
         particleNode->color = p.color;
 
         particleNode->pos = p.pos;
-        particleNode->scale = Vec3(0.02f, 0.02f, 0.02f);
+        particleNode->scale = Vec3(0.02f * p.lifetime/0.4f, 0.02f * p.lifetime/0.4f, 0.02f * p.lifetime/0.4f); // Scale down as it fades
 
         // little rotation (visual)
         particleNode->rot.z += 10.0f;
@@ -1035,64 +758,7 @@ void updateSceneGraph() {
         particlesGroupNode.children.push_back(particleNode);
     }
 }
-/*
-void display() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    setCameraViews(currentCameraView, playerX, playerY);
-    setGraphicStyle(currentGraphicStyle);
 
-    // Camera shake effect
-    glPushMatrix();
-    if (shakeTimer > 0) {
-        float offsetX = ((rand() % 100) / 100.0f - 0.5f) * 2 * shakeManitude;
-        float offsetY = ((rand() % 100) / 100.0f - 0.5f) * 2 * shakeManitude;
-        glTranslatef(offsetX, offsetY, 0.0f);
-        shakeTimer--;
-    }
-
-    updateSceneGraph();
-    rootNode.drawRecursive();
-    drawParticleEffect();
-    glPopMatrix();
-
-
-    // drawing 2D UI
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    gluOrtho2D(-1, 1, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    glDisable(GL_DEPTH_TEST);
-
-    setGraphicStyle(0); // text: opaque polygon style
-
-    std::stringstream ss;
-    ss << "Lives: " << playerLives;
-    drawText(-0.98f, 0.95f, ss.str());
-
-    if (isGameOver) {
-        drawText(-0.1f, 0.0f, "GAME OVER");
-    }
-    else if (isGameClear) {
-        drawText(-0.1f, 0.0f, "GAME CLEAR!");
-    }
-    if (currentCameraView == 0) drawText(-0.98f, 0.90f, "Top View(Perspective)");
-    if (currentCameraView == 1) drawText(-0.98f, 0.90f, "Top View(Orthographic)");
-    if (currentCameraView == 2) drawText(-0.98f, 0.90f, "Third-person View");
-    if (currentGraphicStyle == 0) drawText(-0.98f, 0.85f, "Opaque Polygon Style");
-    if (currentGraphicStyle == 1) drawText(-0.98f, 0.85f, "Wireframe style");
-
-    // rollback to 3D drawing
-    glEnable(GL_DEPTH_TEST);
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-
-    glutSwapBuffers();
-}*/
 
 void display() {
     // 1. clear screen (color & depth buffer)
@@ -1124,44 +790,29 @@ void display() {
         setGraphicStyleThenRender();
     }
 
-    // 6. 2D UI drawing
-    glUseProgram(0); // turn off shader
-
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    gluOrtho2D(-1, 1, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    glDisable(GL_DEPTH_TEST);
-
-    glColor3f(1.0f, 1.0f, 1.0f);
-
-    std::stringstream ss;
-    ss << "Lives: " << playerLives;
-    drawText(-0.98f, 0.95f, ss.str());
+    // 6. Update Window Title (Replaces 2D UI Drawing)
+    std::stringstream title;
+    title << "Bullet Hell Shooter | Lives: " << playerLives;
 
     if (isGameOver) {
-        drawText(-0.1f, 0.0f, "GAME OVER");
-    }
-    else if (isGameClear) {
-        drawText(-0.1f, 0.0f, "GAME CLEAR!");
+        title << " | GAME OVER (R: Restart)";
+    } else if (isGameClear) {
+        title << " | GAME CLEAR! (R: Restart)";
+    } else {
+        title << " | C: Camera (";
+        if (currentCameraView == 0) title << "Top Persp";
+        else if (currentCameraView == 1) title << "Top Ortho";
+        else if (currentCameraView == 2) title << "Third-person";
+        title << ")";
+
+        title << " | Q: Style (";
+        if (currentGraphicStyle == 0) title << "Opaque";
+        else if (currentGraphicStyle == 1) title << "Wireframe";
+        else if (currentGraphicStyle == 2) title << "Hidden Line";
+        title << ")";
     }
 
-    if (currentCameraView == 0) drawText(-0.98f, 0.90f, "Top View(Perspective)");
-    if (currentCameraView == 1) drawText(-0.98f, 0.90f, "Top View(Orthographic)");
-    if (currentCameraView == 2) drawText(-0.98f, 0.90f, "Third-person View");
-    if (currentGraphicStyle == 0) drawText(-0.98f, 0.85f, "Opaque Polygon Style");
-    if (currentGraphicStyle == 1) drawText(-0.98f, 0.85f, "Wireframe style");
-    if (currentGraphicStyle == 2) drawText(-0.98f, 0.85f, "Wireframe style(hidden line removal)");
-
-    // recover 3D setting
-    glEnable(GL_DEPTH_TEST);
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
+    glutSetWindowTitle(title.str().c_str());
 
     glutSwapBuffers();
 }
@@ -1228,7 +879,7 @@ void handleCollisions() {
                     }
                     else
                     {
-                        shakeTimer = 15; // Shake for 5 frames
+                        shakeTimer = 15; // Shake for 15 frames
                     }
                     break;
                 }
@@ -1285,7 +936,7 @@ void processInput() {
 void timer(int value) {
     const float dt = 1.0f / 60.0f; // 60 FPS
 
-    if (!isGameOver) {
+    if (!isGameOver && !isGameClear) {
         processInput();
 
         // update enemies
@@ -1314,6 +965,11 @@ void timer(int value) {
         }
     }
 
+    // Check for game clear condition after collisions/updates
+    if (!isGameOver && enemies.empty()) {
+        isGameClear = true;
+    }
+
     glutPostRedisplay();
     glutTimerFunc(16, timer, 0); // 60 FPS
 }
@@ -1331,7 +987,7 @@ void handleKeyDown(unsigned char key, int x, int y) {
     }
 
     // Reset condition
-    if ((key == 'r' || key == 'R')) {
+    if (key == 'r' || key == 'R') {
         playerLives = 5;
         isPlayerAlive = true;
         isGameOver = false;
@@ -1343,7 +999,6 @@ void handleKeyDown(unsigned char key, int x, int y) {
         spawnEnemy(-0.5f,  0.4f, 0.08f, 4);
         spawnEnemy( 0.6f,  0.45f,0.07f, 3);
     }
-    else if (enemies.size() == 0 && !isGameOver) { isGameClear = true; }
 }
 
 void handleKeyUp(unsigned char key, int x, int y) {
@@ -1369,6 +1024,7 @@ int main(int argc, char** argv) {
     // shader load
     myShader = new Shader("shader.vs", "shader.fs");
 
+    // Assuming assets directory and files exist
     donutModel.load("assets/donut.obj");
     droneModel.load("assets/drone.obj");
     jetModel.load("assets/jet.obj");
