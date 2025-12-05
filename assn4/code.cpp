@@ -14,7 +14,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 #define STB_IMAGE_IMPLEMENTATION
-#include "std_image.h"
+#include "stb_image.h"
 
 // Texture loader. returns LG texture id
 unsigned int loadTexture(const char* path) {
@@ -129,6 +129,14 @@ public:
         glUniform3f(glGetUniformLocation(ID, name.c_str()), x, y, z);
     }
 
+    void setInt(const std::string& name, int value) const {
+        glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
+    }
+    void setFloat(const std::string& name, float value) const {
+        glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+    }
+
+
 private:
     // error check
     void checkCompileErrors(unsigned int shader, std::string type) {
@@ -171,48 +179,113 @@ public:
         tinyobj::attrib_t attrib;
         std::vector<tinyobj::shape_t> shapes;
         std::vector<tinyobj::material_t> materials;
-        std::string warn;
-        std::string err;
-
-        // 1. read file
+        std::string warn, err;
         if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename)) {
-            std::cerr << "Error: " << warn << err << std::endl;
-            return;
+            std::cerr << "Error: " << warn << err << std::endl; return;
         }
 
-        vertices.clear();
-        vertexCount = 0;
-
+        struct Vertex { glm::vec3 pos, normal; glm::vec2 uv; glm::vec3 tangent; };
+        std::vector<Vertex> verts;
+        std::vector<unsigned int> indices;
+        // Build vertex list (unique by index triple) - for simplicity, expand all indices (no dedup)
         for (const auto& shape : shapes) {
-            for (const auto& index : shape.mesh.indices) {
-                vertices.push_back(attrib.vertices[3 * index.vertex_index + 0]);
-                vertices.push_back(attrib.vertices[3 * index.vertex_index + 1]);
-                vertices.push_back(attrib.vertices[3 * index.vertex_index + 2]);
-                vertexCount++;
+            for (size_t f = 0; f < shape.mesh.indices.size(); f += 3) {
+                // read three indices
+                tinyobj::index_t idx0 = shape.mesh.indices[f+0];
+                tinyobj::index_t idx1 = shape.mesh.indices[f+1];
+                tinyobj::index_t idx2 = shape.mesh.indices[f+2];
+
+                auto makeVertex = [&](const tinyobj::index_t &idx) -> Vertex {
+                    Vertex v;
+                    v.pos = glm::vec3(
+                        attrib.vertices[3*idx.vertex_index + 0],
+                        attrib.vertices[3*idx.vertex_index + 1],
+                        attrib.vertices[3*idx.vertex_index + 2]
+                    );
+                    if (idx.normal_index >= 0) {
+                        v.normal = glm::vec3(
+                            attrib.normals[3*idx.normal_index + 0],
+                            attrib.normals[3*idx.normal_index + 1],
+                            attrib.normals[3*idx.normal_index + 2]
+                        );
+                    } else v.normal = glm::vec3(0.0f, 0.0f, 1.0f);
+
+                    if (idx.texcoord_index >= 0) {
+                        v.uv = glm::vec2(
+                            attrib.texcoords[2*idx.texcoord_index + 0],
+                            attrib.texcoords[2*idx.texcoord_index + 1]
+                        );
+                    } else v.uv = glm::vec2(0.0f, 0.0f);
+
+                    v.tangent = glm::vec3(0.0f);
+                    return v;
+                };
+
+                Vertex v0 = makeVertex(idx0);
+                Vertex v1 = makeVertex(idx1);
+                Vertex v2 = makeVertex(idx2);
+
+                // compute tangent for this triangle
+                glm::vec3 edge1 = v1.pos - v0.pos;
+                glm::vec3 edge2 = v2.pos - v0.pos;
+                glm::vec2 deltaUV1 = v1.uv - v0.uv;
+                glm::vec2 deltaUV2 = v2.uv - v0.uv;
+                float flt = 1.0f;
+                float denom = (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+                if (fabs(denom) > 1e-6f) flt = 1.0f / denom;
+                glm::vec3 tangent = flt * (edge1 * deltaUV2.y - edge2 * deltaUV1.y);
+
+                v0.tangent += tangent;
+                v1.tangent += tangent;
+                v2.tangent += tangent;
+
+                // push expanded vertices
+                verts.push_back(v0);
+                verts.push_back(v1);
+                verts.push_back(v2);
             }
         }
 
-        // 1. generate VAO, VBO
-        glGenVertexArrays(1, &VAO);
-        glGenBuffers(1, &VBO);
+        // normalize tangents & build interleaved float array
+        vertices.clear();
+        for (auto &v : verts) {
+            glm::vec3 t = glm::normalize(v.tangent);
+            // push pos
+            vertices.push_back(v.pos.x); vertices.push_back(v.pos.y); vertices.push_back(v.pos.z);
+            // normal
+            vertices.push_back(v.normal.x); vertices.push_back(v.normal.y); vertices.push_back(v.normal.z);
+            // uv
+            vertices.push_back(v.uv.x); vertices.push_back(v.uv.y);
+            // tangent
+            vertices.push_back(t.x); vertices.push_back(t.y); vertices.push_back(t.z);
+            vertexCount++;
+        }
 
-        // 2. VAO binding
+        // VAO/VBO upload (stride = 11 floats)
+        if (VAO == 0) glGenVertexArrays(1, &VAO);
+        if (VBO == 0) glGenBuffers(1, &VBO);
+
         glBindVertexArray(VAO);
-
-        // 3. VBO binding, copy data
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
-        // 4. attribute setting
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        GLsizei stride = 11 * sizeof(float);
+        // pos
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)(0));
         glEnableVertexAttribArray(0);
+        // normal
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        // uv
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        // tangent
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, stride, (void*)(8 * sizeof(float)));
+        glEnableVertexAttribArray(3);
 
-        // 5. unbinding
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
-
-        // vertices.clear();
-    }
+}
 
     void draw() {
         if (vertexCount == 0 || VAO == 0) return;
@@ -318,6 +391,7 @@ float playerX = 0.0f;
 float playerY = 0.0f;
 int currentCameraView = 0; // 0: top view(perspective), 1: top view(orthographic), 2: third-person view
 int currentGraphicStyle = 0;// 0: opaque polygon style, 1: wireframe style, 2: hidden line removal
+int shadingMode = 1;  // 0 = Gouraud, 1 = Phong, 2 = Phong + Normal Mapping
 const float playerSize = 0.3f;
 float orbitAngle = 0.0f; // Angle for entities around player
 float orbitSpeed = 0.005f;
@@ -386,6 +460,12 @@ Node orbitGroupNode;
 Node enemiesGroupNode;
 Node bulletsGroupNode;
 Node particlesGroupNode;
+
+// Textures
+unsigned int diffuseSonic1;
+unsigned int diffuseSonic2;
+unsigned int diffuseStarship;
+unsigned int normalCobble;
 
 const int MAX_ORBIENTITIES = 5;
 const int MAX_ENEMIES = 3;
@@ -814,6 +894,43 @@ void display() {
     if (myShader != nullptr) {
         myShader->use();
 
+        // camera pos (for specular)
+        glm::vec3 camPos = glm::vec3( /* compute camera world pos depending on view */ );
+        // for top views camera at (0,0,2.5) from setCameraViews
+        myShader->setVec3("cameraPos", camPos.x, camPos.y, camPos.z);
+
+        // shading mode
+        myShader->setInt("shadingMode", shadingMode);
+
+        // directional light
+        myShader->setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f); 
+        myShader->setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
+        myShader->setVec3("dirLight.diffuse", 0.6f, 0.6f, 0.6f);
+        myShader->setVec3("dirLight.specular", 1.0f, 1.0f, 1.0f);
+
+        // point light (orbiting around player)
+        float t = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+        float orbitR = 0.6f;
+        float px = playerX + orbitR * cos(t * 1.2f);
+        float py = playerY + orbitR * sin(t * 1.2f);
+        float pz = 0.4f;
+        myShader->setVec3("pointLight.position", px, py, pz);
+        myShader->setVec3("pointLight.ambient", 0.02f, 0.02f, 0.05f);
+        myShader->setVec3("pointLight.diffuse", 0.8f, 0.7f, 0.6f);
+        myShader->setVec3("pointLight.specular", 1.0f, 1.0f, 1.0f);
+        myShader->setFloat("pointLight.constant", 1.0f);
+        myShader->setFloat("pointLight.linear", 0.09f);
+        myShader->setFloat("pointLight.quadratic", 0.032f);
+
+        // bind textures to units
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, diffuseStarship /*example*/);
+        myShader->setInt("diffuseMap", 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, normalCobble /*example*/);
+        myShader->setInt("normalMap", 1);
+
         // send View, Projection matrix to shader
         myShader->setMat4("view", glm::value_ptr(g_viewMatrix));
         myShader->setMat4("projection", glm::value_ptr(g_projMatrix));
@@ -1019,6 +1136,10 @@ void handleKeyDown(unsigned char key, int x, int y) {
         currentGraphicStyle = (currentGraphicStyle + 1) % 3;
     }
 
+    if (key == 'g' || key == 'G') {
+        shadingMode = (shadingMode + 1) % 3;
+    }    
+
     // Reset condition
     if (key == 'r' || key == 'R') {
         playerLives = 5;
@@ -1070,10 +1191,10 @@ int main(int argc, char** argv) {
     triangleModel.load("assets/triangle.obj");
 
     // load texture files
-    unsigned int diffuseSonic1 = loadTexture("new_assets/diffuse_sonic_1.png");
-    unsigned int diffuseSonic2 = loadTexture("new_assets/diffuse_sonic_2.png");
-    unsigned int diffuseStarship = loadTexture("new_assets/diffuse_starship.png");
-    unsigned int normalCobble = loadTexture("new_assets/normal_cobble.png");
+    diffuseSonic1 = loadTexture("new_assets/diffuse_sonic_1.png");
+    diffuseSonic2 = loadTexture("new_assets/diffuse_sonic_2.png");
+    diffuseStarship = loadTexture("new_assets/diffuse_starship.png");
+    normalCobble = loadTexture("new_assets/normal_cobble.png");
 
 
     // intialize node pool
