@@ -400,6 +400,7 @@ int playerLives = 3;
 bool isPlayerAlive = true;
 bool isGameOver = false;
 bool isGameClear = false;
+bool isDebugMode = false;
 
 // Bullet structure
 struct Bullet {
@@ -904,23 +905,23 @@ void display() {
 
         // directional light
         myShader->setVec3("dirLight.direction", -0.2f, -1.0f, -0.3f); 
-        myShader->setVec3("dirLight.ambient", 0.05f, 0.05f, 0.05f);
-        myShader->setVec3("dirLight.diffuse", 0.6f, 0.6f, 0.6f);
+        myShader->setVec3("dirLight.ambient", 0.4f, 0.4f, 0.4f);
+        myShader->setVec3("dirLight.diffuse", 1.0f, 1.0f, 1.0f);
         myShader->setVec3("dirLight.specular", 1.0f, 1.0f, 1.0f);
 
         // point light (orbiting around player)
         float t = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
         float orbitR = 0.6f;
-        float px = playerX + orbitR * cos(t * 1.2f);
-        float py = playerY + orbitR * sin(t * 1.2f);
+        float px = playerX + orbitR * cos(t * 2.4f);
+        float py = playerY + orbitR * sin(t * 2.4f);
         float pz = 0.4f;
         myShader->setVec3("pointLight.position", px, py, pz);
-        myShader->setVec3("pointLight.ambient", 0.02f, 0.02f, 0.05f);
-        myShader->setVec3("pointLight.diffuse", 0.8f, 0.7f, 0.6f);
+        myShader->setVec3("pointLight.ambient", 0.2f, 0.2f, 0.2f);
+        myShader->setVec3("pointLight.diffuse", 1.0f, 1.0f, 1.0f);
         myShader->setVec3("pointLight.specular", 1.0f, 1.0f, 1.0f);
         myShader->setFloat("pointLight.constant", 1.0f);
-        myShader->setFloat("pointLight.linear", 0.09f);
-        myShader->setFloat("pointLight.quadratic", 0.032f);
+        myShader->setFloat("pointLight.linear", 0.045f);
+        myShader->setFloat("pointLight.quadratic", 0.0075f);
 
         // bind textures to units
         glActiveTexture(GL_TEXTURE0);
@@ -960,6 +961,13 @@ void display() {
         else if (currentGraphicStyle == 1) title << "Wireframe";
         else if (currentGraphicStyle == 2) title << "Hidden Line";
         title << ")";
+
+        title << " | G: Shading (";
+        if (shadingMode == 0) title << "Gouraud";
+        else if (shadingMode == 1) title << "Phong";
+        else if (shadingMode == 2) title << "Phong + Normal Mapping";
+        title << ")";
+
     }
 
     glutSetWindowTitle(title.str().c_str());
@@ -1016,7 +1024,7 @@ void handleCollisions() {
     }
 
     // Enemy bullet collision with player
-    if (isPlayerAlive) {
+    if (isPlayerAlive && !isDebugMode) {
         for (auto it = bullets.begin(); it != bullets.end();) {
             if (!it->isFromPlayer) {
                 if (rectCollision(it->x, it->y, BULLET_SIZE, playerX, playerY, playerSize)) {
@@ -1138,7 +1146,11 @@ void handleKeyDown(unsigned char key, int x, int y) {
 
     if (key == 'g' || key == 'G') {
         shadingMode = (shadingMode + 1) % 3;
-    }    
+    }
+
+    if (key == 'p' || key == 'P') {
+        isDebugMode = !isDebugMode;
+    }
 
     // Reset condition
     if (key == 'r' || key == 'R') {
