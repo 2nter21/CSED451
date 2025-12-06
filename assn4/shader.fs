@@ -13,6 +13,7 @@ uniform sampler2D normalMap;
 uniform int shadingMode; // 0=gouraud,1=phong,2=phong+normalmap
 uniform vec3 objectColor;
 uniform vec3 cameraPos;
+uniform bool isShadow;
 
 // Directional light struct
 struct DirLight {
@@ -60,6 +61,10 @@ vec3 calcPointLight(PointLight light, vec3 N, vec3 V, vec3 fragPos) {
 }
 
 void main() {
+    if (isShadow) {
+        FragColor = vec4(0.3, 0.3, 0.3, 1.0);
+        return;
+    }
     vec3 color = texture(diffuseMap, TexCoord).rgb * objectColor;
     if (shadingMode == 0) {
         // Gouraud: fragment simply uses interpolated color

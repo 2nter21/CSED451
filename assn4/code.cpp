@@ -684,8 +684,61 @@ void setCameraViews(int viewType, float pX, float pY) {
     }
 }
 
+// making planar shadow matrix function
+glm::mat4 generateShadowMatrix(glm::vec3 lightPos, glm::vec4 planeEq) {
+    glm::mat4 shadowMat(1.0f);
+    float dot = planeEq.x * lightPos.x + planeEq.y * lightPos.y + planeEq.z * lightPos.z + planeEq.w * 1.0f; // w는 1로 가정
+
+    // 수학 공식이라 머리가 아프겠지만... 그냥 납작하게 만드는 식이야...
+    shadowMat[0][0] = dot - lightPos.x * planeEq.x;
+    shadowMat[1][0] = 0.0f - lightPos.x * planeEq.y;
+    shadowMat[2][0] = 0.0f - lightPos.x * planeEq.z;
+    shadowMat[3][0] = 0.0f - lightPos.x * planeEq.w;
+
+    shadowMat[0][1] = 0.0f - lightPos.y * planeEq.x;
+    shadowMat[1][1] = dot - lightPos.y * planeEq.y;
+    shadowMat[2][1] = 0.0f - lightPos.y * planeEq.z;
+    shadowMat[3][1] = 0.0f - lightPos.y * planeEq.w;
+
+    shadowMat[0][2] = 0.0f - lightPos.z * planeEq.x;
+    shadowMat[1][2] = 0.0f - lightPos.z * planeEq.y;
+    shadowMat[2][2] = dot - lightPos.z * planeEq.z;
+    shadowMat[3][2] = 0.0f - lightPos.z * planeEq.w;
+
+    shadowMat[0][3] = 0.0f - 1.0f * planeEq.x;
+    shadowMat[1][3] = 0.0f - 1.0f * planeEq.y;
+    shadowMat[2][3] = 0.0f - 1.0f * planeEq.z;
+    shadowMat[3][3] = dot - 1.0f * planeEq.w;
+
+    return shadowMat;
+}
+
 void setGraphicStyleThenRender() {
     glm::mat4 identityMatrix = glm::mat4(1.0f);
+
+    // (1) define light only for shadow
+    glm::vec3 shadowLightPos(0.0f, 0.0f, 20.0f);
+
+    // (2) define floor
+    glm::vec4 planeEq(0.0f, 0.0f, 1.0f, 1.0f);
+
+    // (3) make shadow matrix
+    glm::mat4 shadowMatrix = generateShadowMatrix(shadowLightPos, planeEq);
+
+    // (4) shader setting (shadow drawing)
+    myShader->setInt("isShadow", 1);
+
+    // (5) turn off depth buffer
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0f, 1.0f); // push shadow to back a little bit
+
+    // (6) draw
+    bboxNode.isVisible = false;
+    rootNode.drawRecursive(shadowMatrix, myShader);
+    bboxNode.isVisible = true;
+
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    myShader->setInt("isShadow", 0);
 
     // 0 = opaque polygon style
     if (currentGraphicStyle == 0) {
