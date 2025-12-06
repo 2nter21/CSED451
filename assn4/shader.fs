@@ -35,6 +35,23 @@ struct PointLight {
 };
 uniform PointLight pointLights[NR_POINT_LIGHTS];
 
+struct SpotLight {
+    vec3 position;
+    vec3 direction;
+    float cutOff;
+    float outerCutOff;
+  
+    float constant;
+    float linear;
+    float quadratic;
+  
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;       
+};
+
+uniform SpotLight spotLight;
+
 // Helper functions (same formulas as vertex shader)
 vec3 calcDirLight(vec3 N, vec3 V) {
     vec3 L = normalize(-dirLight.direction);
@@ -58,6 +75,22 @@ vec3 calcPointLight(PointLight light, vec3 N, vec3 V, vec3 fragPos) {
     float spec = pow(max(dot(V, R), 0.0), 32.0);
     vec3 specular = light.specular * spec;
     return (ambient + diffuse + specular) * attenuation;
+}
+
+vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir) {
+    vec3 lightDir = normalize(light.position - fragPos);
+    float diff = max(dot(normal, lightDir), 0.0);
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));    
+    float theta = dot(lightDir, normalize(-light.direction)); 
+    float epsilon = light.cutOff - light.outerCutOff;
+    float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+    vec3 ambient = light.ambient * attenuation; 
+    vec3 diffuse = light.diffuse * diff * attenuation * intensity;
+    vec3 specular = light.specular * spec * attenuation * intensity;
+    return (ambient + diffuse + specular);
 }
 
 void main() {
@@ -91,7 +124,7 @@ void main() {
     result += calcDirLight(N, V);
     for(int i = 0; i < NR_POINT_LIGHTS; i++)
         result += calcPointLight(pointLights[i], N, V, FragPos);
-
+    result += CalcSpotLight(spotLight, N, FragPos, V);
     vec3 finalColor = result * color;
     FragColor = vec4(finalColor, 1.0);
 }

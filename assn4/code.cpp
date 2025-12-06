@@ -1005,6 +1005,18 @@ void display() {
         myShader->setFloat("pointLight.quadratic", 0.0075f);
         */
 
+        // spotlight
+        myShader->setVec3("spotLight.position", playerX, playerY, 0.5f);
+        myShader->setVec3("spotLight.direction", 0.0f, 1.0f, -0.5f);
+        myShader->setVec3("spotLight.ambient", 0.0f, 0.0f, 0.0f);
+        myShader->setVec3("spotLight.diffuse", 0.0f, 5.0f, 5.0f);
+        myShader->setVec3("spotLight.specular", 1.0f, 1.0f, 1.0f);
+        myShader->setFloat("spotLight.constant", 1.0f);
+        myShader->setFloat("spotLight.linear", 0.045f);
+        myShader->setFloat("spotLight.quadratic", 0.0075f);
+        myShader->setFloat("spotLight.cutOff", glm::cos(glm::radians(20.0f)));
+        myShader->setFloat("spotLight.outerCutOff", glm::cos(glm::radians(25.0f)));
+
         // bind textures to units
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, diffuseStarship /*example*/);
