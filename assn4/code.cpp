@@ -915,6 +915,34 @@ void display() {
         float px = playerX + orbitR * cos(t * 2.4f);
         float py = playerY + orbitR * sin(t * 2.4f);
         float pz = 0.4f;
+
+        // positions of point lights
+        glm::vec3 pointLightPositions[] = {
+            glm::vec3(px, py, pz), 
+            glm::vec3(0.7f,  0.2f,  0.5f),
+            glm::vec3(-0.7f, -0.2f,  0.5f),
+            glm::vec3(0.0f,  0.8f,  0.5f)
+        };
+
+        // color of lights
+        glm::vec3 pointLightColors[] = {
+            glm::vec3(1.0f, 1.0f, 1.0f),
+            glm::vec3(1.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f),
+            glm::vec3(0.0f, 0.0f, 1.0f)
+        };
+
+        for (int i = 0; i < 4; i++) {
+            std::string number = std::to_string(i);
+            myShader->setVec3("pointLights[" + number + "].position", pointLightPositions[i].x, pointLightPositions[i].y, pointLightPositions[i].z);
+            myShader->setVec3("pointLights[" + number + "].ambient", 0.05f, 0.05f, 0.05f);
+            myShader->setVec3("pointLights[" + number + "].diffuse", pointLightColors[i].x, pointLightColors[i].y, pointLightColors[i].z);
+            myShader->setVec3("pointLights[" + number + "].specular", 1.0f, 1.0f, 1.0f);
+            myShader->setFloat("pointLights[" + number + "].constant", 1.0f);
+            myShader->setFloat("pointLights[" + number + "].linear", 0.09f);
+            myShader->setFloat("pointLights[" + number + "].quadratic", 0.032f);
+        }
+        /*
         myShader->setVec3("pointLight.position", px, py, pz);
         myShader->setVec3("pointLight.ambient", 0.2f, 0.2f, 0.2f);
         myShader->setVec3("pointLight.diffuse", 1.0f, 1.0f, 1.0f);
@@ -922,6 +950,7 @@ void display() {
         myShader->setFloat("pointLight.constant", 1.0f);
         myShader->setFloat("pointLight.linear", 0.045f);
         myShader->setFloat("pointLight.quadratic", 0.0075f);
+        */
 
         // bind textures to units
         glActiveTexture(GL_TEXTURE0);

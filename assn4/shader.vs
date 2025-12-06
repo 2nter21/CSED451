@@ -1,4 +1,5 @@
 #version 330 core
+#define NR_POINT_LIGHTS 4
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aTex;
@@ -29,7 +30,7 @@ struct PointLight {
     float linear;
     float quadratic;
 };
-uniform PointLight pointLight;
+uniform PointLight pointLights[NR_POINT_LIGHTS];
 
 uniform vec3 cameraPos;
 
@@ -51,16 +52,16 @@ vec3 CalcDirectional(vec3 normal, vec3 viewDir, vec3 lightDir) {
     return ambient + diffuse + specular;
 }
 
-vec3 CalcPoint(vec3 normal, vec3 fragPos, vec3 viewDir, vec3 lightPos) {
+vec3 CalcPoint(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 lightPos) {
     vec3 lightDir = normalize(fragPos - lightPos); // note: using fragPos - lightPos so matches fragment calc
     float distance = length(lightPos - fragPos);
-    float attenuation = 1.0 / (pointLight.constant + pointLight.linear * distance + pointLight.quadratic * (distance*distance));
-    vec3 ambient = pointLight.ambient;
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance*distance));
+    vec3 ambient = light.ambient;
     float diff = max(dot(normal, -lightDir), 0.0);
-    vec3 diffuse = pointLight.diffuse * diff;
+    vec3 diffuse = light.diffuse * diff;
     vec3 reflectDir = reflect(lightDir, normal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-    vec3 specular = pointLight.specular * spec;
+    vec3 specular = light.specular * spec;
     return (ambient + diffuse + specular) * attenuation;
 }
 
@@ -83,7 +84,9 @@ void main() {
         // directional
         vec3 result = CalcDirectional(N, viewDir, dirLight.direction);
         // point
-        result += CalcPoint(N, FragPos, viewDir, pointLight.position);
+        for(int i = 0; i < NR_POINT_LIGHTS; i++) {
+            result += CalcPoint(pointLights[i], N, FragPos, viewDir, pointLights[i].position);
+        }
 
         Color_Gouraud = result; // used directly in fragment
     }

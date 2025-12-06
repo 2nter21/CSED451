@@ -1,4 +1,5 @@
 #version 330 core
+#define NR_POINT_LIGHTS 4
 in vec3 FragPos;
 in vec3 Normal;
 in vec2 TexCoord;
@@ -31,7 +32,7 @@ struct PointLight {
     float linear;
     float quadratic;
 };
-uniform PointLight pointLight;
+uniform PointLight pointLights[NR_POINT_LIGHTS];
 
 // Helper functions (same formulas as vertex shader)
 vec3 calcDirLight(vec3 N, vec3 V) {
@@ -45,16 +46,16 @@ vec3 calcDirLight(vec3 N, vec3 V) {
     return ambient + diffuse + specular;
 }
 
-vec3 calcPointLight(vec3 N, vec3 V, vec3 fragPos) {
-    vec3 L = normalize(pointLight.position - fragPos);
-    float distance = length(pointLight.position - fragPos);
-    float attenuation = 1.0 / (pointLight.constant + pointLight.linear * distance + pointLight.quadratic * (distance * distance));
-    vec3 ambient = pointLight.ambient;
+vec3 calcPointLight(PointLight light, vec3 N, vec3 V, vec3 fragPos) {
+    vec3 L = normalize(light.position - fragPos);
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+    vec3 ambient = light.ambient;
     float diff = max(dot(N, L), 0.0);
-    vec3 diffuse = pointLight.diffuse * diff;
+    vec3 diffuse = light.diffuse * diff;
     vec3 R = reflect(-L, N);
     float spec = pow(max(dot(V, R), 0.0), 32.0);
-    vec3 specular = pointLight.specular * spec;
+    vec3 specular = light.specular * spec;
     return (ambient + diffuse + specular) * attenuation;
 }
 
@@ -83,7 +84,8 @@ void main() {
 
     vec3 result = vec3(0.0);
     result += calcDirLight(N, V);
-    result += calcPointLight(N, V, FragPos);
+    for(int i = 0; i < NR_POINT_LIGHTS; i++)
+        result += calcPointLight(pointLights[i], N, V, FragPos);
 
     vec3 finalColor = result * color;
     FragColor = vec4(finalColor, 1.0);
