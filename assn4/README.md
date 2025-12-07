@@ -12,6 +12,8 @@ CSED451 Computer Graphics Assignment
 * 재시작 : R
 * 그래픽 스타일 변경 : Q
 * 카메라 시점 변경 : C
+* 쉐이딩 스타일 변경 : G
+* 무적 모드 (테스트용) : P
 
 # How To Build
 1. Powershell을 사용, 저장소 루트로 이동
@@ -40,9 +42,14 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 /lib
     freeglut.lib
     glew32.lib
+/new_assets
+
 code.cpp
 build.ps1
 README.md
+shader.fs
+shader.vs
+stb_image.h
 tiny_obj_loader.h
 ```
 
@@ -70,7 +77,8 @@ tiny_obj_loader.h
 * `reactCollision` : 충돌 감지
 * `handleCollisions` : 충돌 발생 시 내부 처리
 
-* `setGraphicStyle` : 그래픽 스타일 변경
+* `generateShadowMatrix` : Planar Shadow를 위한 matrix 생성
+* `setGraphicStyleThenRender` : Planar Shadow 그리기, 그래픽 스타일 변경
 * `setCameraView` : 카메라 시점 변경
 * `updateSceneGraph` : 씬 그래프 변경사항 업데이트
 

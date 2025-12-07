@@ -687,9 +687,8 @@ void setCameraViews(int viewType, float pX, float pY) {
 // making planar shadow matrix function
 glm::mat4 generateShadowMatrix(glm::vec3 lightPos, glm::vec4 planeEq) {
     glm::mat4 shadowMat(1.0f);
-    float dot = planeEq.x * lightPos.x + planeEq.y * lightPos.y + planeEq.z * lightPos.z + planeEq.w * 1.0f; // w는 1로 가정
+    float dot = planeEq.x * lightPos.x + planeEq.y * lightPos.y + planeEq.z * lightPos.z + planeEq.w * 1.0f;
 
-    // 수학 공식이라 머리가 아프겠지만... 그냥 납작하게 만드는 식이야...
     shadowMat[0][0] = dot - lightPos.x * planeEq.x;
     shadowMat[1][0] = 0.0f - lightPos.x * planeEq.y;
     shadowMat[2][0] = 0.0f - lightPos.x * planeEq.z;

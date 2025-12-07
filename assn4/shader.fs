@@ -77,7 +77,7 @@ vec3 calcPointLight(PointLight light, vec3 N, vec3 V, vec3 fragPos) {
     return (ambient + diffuse + specular) * attenuation;
 }
 
-vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir) {
+vec3 calcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir) {
     vec3 lightDir = normalize(light.position - fragPos);
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 reflectDir = reflect(-lightDir, normal);
@@ -124,7 +124,7 @@ void main() {
     result += calcDirLight(N, V);
     for(int i = 0; i < NR_POINT_LIGHTS; i++)
         result += calcPointLight(pointLights[i], N, V, FragPos);
-    result += CalcSpotLight(spotLight, N, FragPos, V);
+    result += calcSpotLight(spotLight, N, FragPos, V);
     vec3 finalColor = result * color;
     FragColor = vec4(finalColor, 1.0);
 }
